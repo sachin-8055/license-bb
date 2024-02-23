@@ -4,15 +4,16 @@ import dts from 'vite-plugin-dts';
 // https://vitejs.dev/guide/build.html#library-mode
 export default defineConfig({
   build: {
-    // rollupOptions:{
-    //     output:{
-    //         extend:true
-    //     }
-    // },
+    rollupOptions:{
+        output:{
+            extend:true
+        },
+        external: ['module', 'dependencies'],
+    },
     lib: {
       entry: resolve(__dirname, 'lib/index.ts'),
       name: 'licenseBB',
-      formats:['es','cjs','umd','iife'],
+      formats:['cjs','umd'],
       fileName: 'index',
     },
   },

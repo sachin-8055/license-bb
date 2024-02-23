@@ -3,11 +3,8 @@
     "target": "ES2020",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES6", "ES2020", "ESNext", "DOM", "DOM.Iterable"],
+    "lib": ["ES2020", "ES2021.String", "DOM", "DOM.Iterable" , "ESNext","ES2015","ES2016"],
     "skipLibCheck": true,
-    
-    "esModuleInterop": true,
-
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -15,6 +12,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "esModuleInterop": true,
 
     /* Linting */
     "strict": true,
@@ -22,5 +20,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["lib"]
+  "include": ["lib"],
 }

@@ -1,12 +1,12 @@
 // var { machineId } = require("node-machine-id");
 // const moment = require("moment-timezone");
 import {publicIpv4 } from 'public-ip';
-import axios from 'axios';
-import fs from 'fs';
-// import { ensureDirSync } from 'fs-extra'
+// import axios from 'axios';
+// import http from 'http';
+import fs from 'node:fs';
 
 import { initializeProps, objectProps } from "./types";
-import { initProps } from "./reqInputs";
+import  initProps from "./reqInputs";
 
 // global properties for reuse
 let global_base_folder = "bbLicenseUtils";
@@ -20,12 +20,18 @@ let global_ipAddress: string = "";
 // Function to fetch IP address from a third-party service using async/await
 async function getIpAddress() {
   try {
-   
-    const response = await axios.get("https://api64.ipify.org?format=json");
-    console.log({response})
-    const data:any = await response.data;
-    global_ipAddress = data?.ip || "-";
-    return data?.ip || "-";
+    
+    await fetch("https://api64.ipify.org?format=json").then(r=>{
+      console.log("then > ",r);
+     
+    }).catch(err=>{
+      console.log("ipAPI >>",err);
+    });
+
+    // console.log({response})
+    // const data:any = response;
+    // global_ipAddress = data?.ip || "-";
+    // return data?.ip || "-";
   } catch (error) {
     console.error("Error fetching IP address:", error);
    
@@ -113,5 +119,10 @@ const licenseBB = {
 //   feature,
   license,
 };
-export * from "./types";
+
+// CommonJS format
+module.exports = licenseBB;
+
+// ES module format
+// export * from "./types";
 export default licenseBB;

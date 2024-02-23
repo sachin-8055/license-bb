@@ -1,0 +1,35 @@
+{
+  "name": "test2",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.umd.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.umd.cjs"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/node": "^20.11.20",
+    "@types/node-fetch": "^2.6.11",
+    "typescript": "^5.3.3",
+    "vite": "^4.5.1",
+    "vite-plugin-dts": "^3.7.3"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "http": "^0.0.1-security",
+    "public-ip": "^6.0.1"
+  }
+}
