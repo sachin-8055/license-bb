@@ -483,7 +483,7 @@ export class License {
     }
   }
 
-  static async getFeatures(org_Id: string = "", featureName: string = ""): Promise<responseData> {
+  static async getFeatures(org_Id: string = "", featureName: string = "all"): Promise<responseData> {
     let licenseData = await this.extractLicense(org_Id);
 
     if (Number(licenseData?.code) < 0) return licenseData;
@@ -494,11 +494,36 @@ export class License {
 
     if (licenseData?.data?.include?.package && _lic_package?.features) {
       if (featureName?.toLowerCase() == "all") {
-        return {
-          code: 1,
-          data: _lic_package?.features,
-          result: "List of all features",
-        };
+        let _fList: any = [];
+        if (_lic_package?.features?.length > 0) {
+          _lic_package?.features.forEach((item: any) => {
+            _fList.push({
+              ...item,
+              data:
+                item?.type == "number" && item?.data != ""
+                  ? Number(item?.data)
+                  : item?.type == "boolean" && item?.data != ""
+                  ? item.data === "false"
+                    ? false
+                    : Boolean(item.data)
+                  : item?.type == "date" && item?.data != ""
+                  ? new Date(item?.data)
+                  : item.data,
+            });
+          });
+
+          return {
+            code: 1,
+            data: _fList,
+            result: "List of all features",
+          };
+        } else {
+          return {
+            code: -1,
+            data: null,
+            result: `No Feature found with this name ${featureName}`,
+          };
+        }
       } else {
         const item =
           _lic_package?.features.length > 0
@@ -508,17 +533,19 @@ export class License {
         if (item) {
           return {
             code: item ? 1 : -1,
-            data: item
-              ? item?.type == "number" && item?.data != ""
-                ? Number(item?.data)
-                : item?.type == "boolean" && item?.data != ""
-                ? item.data === "false"
-                  ? false
-                  : Boolean(item.data)
-                : item?.type == "date" && item?.data != ""
-                ? new Date(item?.data)
-                : item.data
-              : null,
+            data: {
+              ...item,
+              data:
+                item?.type == "number" && item?.data != ""
+                  ? Number(item?.data)
+                  : item?.type == "boolean" && item?.data != ""
+                  ? item.data === "false"
+                    ? false
+                    : Boolean(item.data)
+                  : item?.type == "date" && item?.data != ""
+                  ? new Date(item?.data)
+                  : item.data,
+            },
             result: item ? "Success" : "No Feature Found.",
           };
         } else {
