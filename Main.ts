@@ -3,8 +3,8 @@ import axios from "axios";
 import moment from "moment-timezone";
 import { clientInputData, responseData, rsaKey } from "./DataFormats";
 import fs from "fs";
-import { rsaDecrypt, rsaGenerateKeys } from "./Security/RSA";
-import { aesDecrypt, aesGenerateKeys } from "./Security/AES";
+import { rsaDecrypt, rsaEncrypt, rsaGenerateKeys } from "./Security/RSA";
+import { aesDecrypt, aesEncrypt, aesGenerateKeys } from "./Security/AES";
 import { machineId } from "node-machine-id";
 
 const licenseBaseFolder: string = "License";
@@ -33,26 +33,196 @@ export class License {
   private static dateTime: Date = new Date();
   private static timeZone: string = moment.tz.guess();
 
-  private static doExchange = async (orgId: string = this.org_Id): Promise<any> => {};
+  private static getTrace = async (org_Id: String = "") => {
+    if (fs) {
+      if (fs.existsSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`)) {
+        let traceFileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, "utf-8");
+
+        if (traceFileData) {
+          return JSON.parse(traceFileData);
+        }
+      }
+
+      return null;
+    }
+  };
+
+  private static updateTrace = async (org_Id: String = "", JsonData: any) => {
+    if (fs) {
+      let oldTrace = await this.getTrace(org_Id);
+
+      if (oldTrace && oldTrace != null && JsonData) {
+        let newTraceData = { ...oldTrace, ...JsonData };
+
+        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(newTraceData, null, 2));
+      } else if (!oldTrace && JsonData) {
+        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(JsonData, null, 2));
+      }
+    }
+  };
+
+  private static doExchange = async (org_Id: string = this.org_Id): Promise<responseData> => {
+    try {
+      const clientData = await this.readFileAndParse(org_Id);
+
+      if (clientData) {
+        let _public_Key = await fs.readFileSync(`${baseFolderPath}/${org_Id}/${publicFile}`, "utf-8");
+
+        if (!clientData?.licenseKey) {
+          return {
+            code: -1,
+            data: null,
+            result: "No client license key found, please call init().",
+          };
+        } else if (!_public_Key) {
+          return {
+            code: -1,
+            data: null,
+            result: "No client public key found, please call init().",
+          };
+        }
+
+        const _doExchangeApi = `${clientData.baseUrl}/sdk/api/doExchange`;
+
+        console.log("doExchange ", { _doExchangeApi });
+
+        const _clientData = { ...clientData };
+        delete _clientData.secretId;
+        delete _clientData.baseUrl;
+
+        const apiBody = {
+          key: _public_Key.toString(),
+          ..._clientData,
+        };
+
+        return await axios
+          .post(`${_doExchangeApi}`, apiBody, {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          })
+          .then(async (res) => {
+            if (res.data?.resultCode == 1) {
+              fs.writeFileSync(`${baseFolderPath}/${org_Id}/${serverFile}`, res.data?.data || "");
+
+              return await this.getLicense(org_Id, clientData).then((getLic) => {
+                if (Number(getLic?.code) < 0) {
+                  return getLic;
+                } else {
+                  return {
+                    code: 1,
+                    data: null,
+                    result: "Successfully exchanged and received license.",
+                  };
+                }
+              });
+            } else {
+              return {
+                code: -1,
+                data: null,
+                result: "Exchange fail with license server.",
+              };
+            }
+          })
+          .catch((err) => {
+            console.log("API CALL EXCEPTION /doExchange : ", `Status: ${err?.response?.status} : ${err?.message}`);
+            console.log("API CALL EXCEPTION /doExchange : ", err?.response?.data);
+            return {
+              code: -2,
+              data: null,
+              result: err?.response?.data?.message || "Fail to get license from server.",
+            };
+          });
+      } else {
+        return {
+          code: -1,
+          data: null,
+          result: "No client config found. please call init() with org id.",
+        };
+      }
+    } catch (error) {
+      console.log("Exchange exception : ", error);
+      throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Exchange Files.");
+    }
+  };
+
+  private static getLicense = async (org_Id: String = "", clientData: any): Promise<responseData> => {
+    try {
+      const _clientEncryptedData = await aesEncrypt(clientData?.secretId, clientData);
+      const _clientKeyData = await rsaEncrypt(`${baseFolderPath}/${org_Id}/${serverFile}`, clientData?.secretId);
+
+      const licenseServerAPI = `${clientData.baseUrl}/sdk/api/generateLicense`;
+
+      console.log("getLicense ", { licenseServerAPI });
+
+      const apiBody = {
+        key: _clientKeyData,
+        licenseKey: clientData?.licenseKey,
+        client: _clientEncryptedData,
+      };
+
+      let licenseUrl = "";
+      return await axios
+        .post(`${licenseServerAPI}`, apiBody, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+        .then((res) => {
+          if (res.data?.resultCode == 1) {
+            try {
+              fs.writeFileSync(
+                `${licenseBaseFolder}/${org_Id}/${licenseFile}`,
+                JSON.stringify(JSON.parse(res.data?.data), null, 2)
+              );
+            } catch (error) {
+              console.log("SDK EXCEPTION :> ", error);
+            }
+            licenseUrl = res.data?.downloadUrl;
+
+            this.updateTrace(org_Id, { isExpired: false, isActive: true, dateTime: new Date() });
+
+            return {
+              code: 1,
+              data: { licenseUrl },
+              result: "License received and saved.",
+            };
+          } else {
+            console.log("Unable to exchange keys...");
+
+            return {
+              code: -1,
+              data: null,
+              result: "Exchange fail with license server.",
+            };
+          }
+        })
+        .catch((err) => {
+          console.log("API CALL EXCEPTION /generateLicense : ", `Status: ${err?.response?.status} : ${err?.message}`);
+          console.log("API CALL EXCEPTION /generateLicense : ", err?.response?.data);
+          return {
+            code: -2,
+            data: null,
+            result: err?.response?.data?.message || "Fail to get license from server.",
+          };
+        });
+    } catch (error) {
+      console.log("Get License Exception :", error);
+      throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Get License.");
+    }
+  };
 
   private static checkPreinit = async (org_Id: String = ""): Promise<any> => {
     let isInitFile: Boolean = fs.existsSync(`${baseFolderPath}/${org_Id}/${initFile}`) || false;
     let isPublicFile: Boolean = fs.existsSync(`${baseFolderPath}/${org_Id}/${publicFile}`) || false;
     let isPrivateFile: Boolean = fs.existsSync(`${baseFolderPath}/${org_Id}/${privateFile}`) || false;
-
-    // if (fs.existsSync(`${baseFolderPath}/${org_Id}/${initFile}`)) {
-    //   isInitFile = true;
-    // }
-
-    // if (fs.existsSync(`${baseFolderPath}/${org_Id}/${publicFile}`)) {
-    //   isPublicFile = true;
-    // }
-
-    // if (fs.existsSync(`${baseFolderPath}/${org_Id}/${privateFile}`)) {
-    //   isPrivateFile = true;
-    // }
-
     return { isInitFile, isPublicFile, isPrivateFile };
+  };
+
+  private static checkExchangeFiles = async (org_Id: String = ""): Promise<any> => {
+    let isServerFile: Boolean = fs.existsSync(`${baseFolderPath}/${org_Id}/${serverFile}`) || false;
+    let isLicenseFile: Boolean = fs.existsSync(`${licenseBaseFolder}/${org_Id}/${licenseFile}`) || false;
+    return { isServerFile, isLicenseFile };
   };
 
   private static removeInitFiles = async (org_Id: String = "", reason: String = "init()") => {
@@ -84,9 +254,17 @@ export class License {
     return parseData || null;
   };
 
-  private static extractLicense = async (org_Id: String = ""): Promise<any> => {
+  private static extractLicense = async (org_Id: String = ""): Promise<responseData> => {
     try {
       const filePath = `${licenseBaseFolder}/${org_Id}/${licenseFile}`;
+
+      let oldTrace = await this.getTrace(org_Id);
+
+      if (oldTrace && oldTrace.isActive == false) {
+        return { code: -2, result: "License is not active, please contact admin.", data: null };
+      } else if (oldTrace && oldTrace.isExpired == true) {
+        return { code: -2, result: "License is Expired, please contact admin.", data: null };
+      }
 
       /** Read License File */
       let _encryptedLicense: any = await fs.readFileSync(filePath, "utf-8");
@@ -101,7 +279,7 @@ export class License {
 
       const fullLicense: any = typeof decodedLicense == "string" ? JSON.parse(decodedLicense) : decodedLicense;
 
-      return fullLicense;
+      return { code: 1, result: "License extracted.", data: fullLicense };
     } catch (error) {
       console.error("Extract License Exception>>", error);
       throw new Error(error instanceof Error ? error.message : "Extract License Exception");
@@ -147,7 +325,8 @@ export class License {
       !clientData.orgName ||
       !clientData.phone ||
       !clientData.serverNameAlias ||
-      !clientData.userName
+      !clientData.userName ||
+      !clientData.assignType
     ) {
       return {
         code: -1,
@@ -217,15 +396,41 @@ export class License {
       }
     }
 
+    let isExchangeNow: Boolean = false;
+
     let keyGen: rsaKey;
     if (!preChecks.isPublicFile || !preChecks.isPrivateFile) {
       keyGen = await rsaGenerateKeys();
 
       fs.writeFileSync(`${baseFolderPath}/${org_Id}/${publicFile}`, keyGen.publicKey);
       fs.writeFileSync(`${baseFolderPath}/${org_Id}/${privateFile}`, keyGen.privateKey);
+
+      isExchangeNow = true;
     }
 
-    return emptyResponse;
+    let exchangeFiles = await this.checkExchangeFiles(org_Id);
+
+    isExchangeNow = !exchangeFiles?.isServerFile || !exchangeFiles?.isLicenseFile ? true : false;
+
+    if (isExchangeNow) {
+      return await this.doExchange(org_Id).then((exchRes) => {
+        if (Number(exchRes?.code) < 0) {
+          return exchRes;
+        } else {
+          return {
+            code: 1,
+            data: null,
+            result: "Successfully license exchange/received.",
+          };
+        }
+      });
+    }
+
+    return {
+      code: 1,
+      data: null,
+      result: "License already exist with provided license key.",
+    };
   }
 
   static async getConfig(org_Id: String = ""): Promise<responseData> {
@@ -267,10 +472,6 @@ export class License {
       parseData.orgId = org_Id.toString().trim();
       parseData.dateTime = new Date();
 
-      // _res.code = 1;
-      // _res.data = parseData;
-      // _res.result = "Success";
-
       const res_init = await this.init(parseData?.baseUrl, license_Key, parseData);
       return res_init;
     } else {
@@ -285,7 +486,11 @@ export class License {
   static async getFeatures(org_Id: string = "", featureName: string = ""): Promise<responseData> {
     let licenseData = await this.extractLicense(org_Id);
 
+    if (Number(licenseData?.code) < 0) return licenseData;
+
     let _lic_package = licenseData?.data?.include?.package;
+
+    // console.log({f:_lic_package?.features})
 
     if (licenseData?.data?.include?.package && _lic_package?.features) {
       if (featureName?.toLowerCase() == "all") {
@@ -303,7 +508,17 @@ export class License {
         if (item) {
           return {
             code: item ? 1 : -1,
-            data: item ? (isNaN(Number(item.data)) ? "" : Number(item.data)) : null,
+            data: item
+              ? item?.type == "number" && item?.data != ""
+                ? Number(item?.data)
+                : item?.type == "boolean" && item?.data != ""
+                ? item.data === "false"
+                  ? false
+                  : Boolean(item.data)
+                : item?.type == "date" && item?.data != ""
+                ? new Date(item?.data)
+                : item.data
+              : null,
             result: item ? "Success" : "No Feature Found.",
           };
         } else {

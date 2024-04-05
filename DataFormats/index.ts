@@ -5,12 +5,13 @@ export type clientInputData = {
   phone: String | null | undefined;
   userName: String | null | undefined;
   orgId: String | null | undefined;
-  orgName: String | null | undefined;
-  serverNameAlias: String | null | undefined;
+  orgName: String | null | undefined;  
+  assignType:String | null | undefined | 'default';
+  serverNameAlias: String | null | undefined | 'UAT' | 'SIT' | 'LIVE' | 'TEST';
 };
 
 export type responseData = {
   code: Number,
-  data: Object | null,
+  data: Object | any | null,
   result: String | null | undefined
 }
