@@ -30,15 +30,15 @@ import { License } from "license-bb";
 
 | Function Name             | Parameters                            | 
 | :-------------------       |:--------------------                    |
-| `License.init()`       | base_Url: String <br />license_Key: String <br />clientData: Object | 
-| `License.getFeature()`| org_Id: String <br />featureName: String     | 
-| `License.updateLicense()`  | license_Key: String <br />org_Id: String <br />assignType: String     | 
+| `License.init()`       | `base_Url`: String <br />license_Key: String <br />clientData: Object | 
+| `License.getFeature()`| `org_Id`: String <br />featureName: String     | 
+| `License.updateLicense()`  | `license_Key`: String <br />org_Id: String <br />assignType: String     | 
 
 | Key | value | description/purpose | 
 |----- |------ |------ |
 | `code` | 1 | Success response from SDK |
-| >  | -1 | Fail/Invalid/Error response from SDK |
-| >  | -2 | Request fail with licensing server (SDK communicating with license server.) |
+|   | -1 | Fail/Invalid/Error response from SDK |
+|   | -2 | Request fail with licensing server (SDK communicating with license server.) |
 | `data` | Object | On success you will get data object but incase of features you will get value instead od object. |
 | `result` | String | Message based on different response code. |
 
