@@ -28,11 +28,11 @@ import { License } from "license-bb";
 
 #List of Functions
 
-| Function Name             | Parameters                            | 
-| :-------------------       |:--------------------                    |
-| `License.init()`       | `base_Url`: String <br />license_Key: String <br />clientData: Object | 
-| `License.getFeature()`| `org_Id`: String <br />featureName: String     | 
-| `License.updateLicense()`  | `license_Key`: String <br />org_Id: String <br />assignType: String     | 
+| Function Name | Parameters | Example |
+| :----------|:--------- | :--------- | 
+| `License.init()` | `base_Url`: String <br />`license_Key`: String <br />`clientData`: Object | base_Url:<LicenseServerBaseUrl>,<br />license_Key: “XXXX-XXXXX-XXXX-XXX”, <br />clientData: {<br />&nbsp;&nbsp;'email':'required*',<br />&nbsp;&nbsp;'phone':'required*',<br />&nbsp;&nbsp;'userName':'required*',<br />&nbsp;&nbsp;'orgId':'required*',<br />&nbsp;&nbsp;'orgName':'required*', <br />&nbsp;&nbsp;'serverNameAlias':'required*'<br />}|
+| `License.getFeature()` | `org_Id`: String <br />`featureName`: String     | 
+| `License.updateLicense()` | `license_Key`: String <br />`org_Id`: String <br />`assignType`: String     | 
 
 | Key | value | description/purpose | 
 |----- |------ |------ |
