@@ -1,0 +1,45 @@
+{
+  "include": {
+    "product": {
+      "_id": "",
+      "productName": "",
+      "productCode": "",
+      "description": "",
+      "productLink": "",
+      "platforms": [],
+      "isActive": true
+    },
+    "package": {
+      "_id": "",
+      "product": "",
+      "name": "",
+      "description": "",
+      "durationDays": "",
+      "price": "",
+      "features": [
+        {
+          "_id": "",
+          "operatorKey": "",
+          "package": "",
+          "name": "",
+          "type": "",
+          "data": "",
+          "createdOn": "",
+          "updatedOn": ""
+        }
+      ],
+      "noOfDevices": 0
+    }
+  },
+  "client": {
+    "_id": "",
+    "firstName": "",
+    "lastName": "",
+    "emailId": "",
+    "mobile": "",
+    "companyName": "",
+    "isActive": false,
+    "createdOn": ""
+  },
+  "meta": { "issued": "0000-00-00T00:00:00.000Z", "expiry": "0000-00-00T00:00:00.000Z" }
+}

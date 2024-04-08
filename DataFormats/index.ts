@@ -13,5 +13,6 @@ export type clientInputData = {
 export type responseData = {
   code: Number,
   data: Object | any | null,
-  result: String | null | undefined
+  result: String | null | undefined,
+  meta?: Object | any | null
 }

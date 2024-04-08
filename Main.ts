@@ -489,7 +489,10 @@ export class License {
     if (Number(licenseData?.code) < 0) return licenseData;
 
     let _lic_package = licenseData?.data?.include?.package;
-
+    let _lic_meta = {
+      issueDate: licenseData?.data?.meta?.issued || "",
+      expiryDate: licenseData?.data?.meta?.expiry || "",
+    }
     // console.log({f:_lic_package?.features})
 
     if (licenseData?.data?.include?.package && _lic_package?.features) {
@@ -516,6 +519,7 @@ export class License {
             code: 1,
             data: _fList,
             result: "List of all features",
+            meta:_lic_meta || null
           };
         } else {
           return {
@@ -546,7 +550,8 @@ export class License {
                   ? new Date(item?.data)
                   : item.data,
             },
-            result: item ? "Success" : "No Feature Found.",
+            meta:_lic_meta || null,
+            result: item ? "Success" : "No Feature Found."
           };
         } else {
           return {
