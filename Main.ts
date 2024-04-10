@@ -84,8 +84,6 @@ export class License {
 
         const _doExchangeApi = `${clientData.baseUrl}/sdk/api/doExchange`;
 
-        console.log("doExchange ", { _doExchangeApi });
-
         const _clientData = { ...clientData };
         delete _clientData.secretId;
         delete _clientData.baseUrl;
@@ -125,8 +123,12 @@ export class License {
             }
           })
           .catch((err) => {
-            console.log("API CALL EXCEPTION /doExchange : ", `Status: ${err?.response?.status} : ${err?.message}`);
-            console.log("API CALL EXCEPTION /doExchange : ", err?.response?.data);
+            console.debug(
+              "License Server Response : ",
+              `Status: ${err?.response?.status} : ${err?.message} : `,
+              err?.response?.data
+            );
+
             return {
               code: -2,
               data: null,
@@ -141,7 +143,7 @@ export class License {
         };
       }
     } catch (error) {
-      console.log("Exchange exception : ", error);
+      console.error("Exchange exception : ", error);
       throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Exchange Files.");
     }
   };
@@ -152,8 +154,6 @@ export class License {
       const _clientKeyData = await rsaEncrypt(`${baseFolderPath}/${org_Id}/${serverFile}`, clientData?.secretId);
 
       const licenseServerAPI = `${clientData.baseUrl}/sdk/api/generateLicense`;
-
-      console.log("getLicense ", { licenseServerAPI });
 
       const apiBody = {
         key: _clientKeyData,
@@ -176,7 +176,8 @@ export class License {
                 JSON.stringify(JSON.parse(res.data?.data), null, 2)
               );
             } catch (error) {
-              console.log("SDK EXCEPTION :> ", error);
+              console.error("SDK EXCEPTION :> ", error);
+              throw new Error(error instanceof Error ? error.message : "License File Save Exception.");
             }
             licenseUrl = res.data?.downloadUrl;
 
@@ -188,8 +189,6 @@ export class License {
               result: "License received and saved.",
             };
           } else {
-            console.log("Unable to exchange keys...");
-
             return {
               code: -1,
               data: null,
@@ -198,8 +197,12 @@ export class License {
           }
         })
         .catch((err) => {
-          console.log("API CALL EXCEPTION /generateLicense : ", `Status: ${err?.response?.status} : ${err?.message}`);
-          console.log("API CALL EXCEPTION /generateLicense : ", err?.response?.data);
+          console.debug(
+            "License Server Response : ",
+            `Status: ${err?.response?.status} : ${err?.message} : `,
+            err?.response?.data
+          );
+
           return {
             code: -2,
             data: null,
@@ -207,8 +210,52 @@ export class License {
           };
         });
     } catch (error) {
-      console.log("Get License Exception :", error);
+      console.error("Get License Exception :", error);
       throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Get License.");
+    }
+  };
+
+  private static checkValidKey = async (license_Key: String = "", baseUrl: String = ""): Promise<responseData> => {
+    try {
+      const licenseServerAPI = `${baseUrl}/sdk/api/keyCheck/${license_Key}`;
+
+      return await axios
+        .get(`${licenseServerAPI}`, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+        .then((res) => {
+          if (res.data?.resultCode == 1) {
+            return {
+              code: 1,
+              data: null,
+              result: res.data?.message || "Key is valid",
+            };
+          } else {
+            return {
+              code: -1,
+              data: null,
+              result: "Key is invalid",
+            };
+          }
+        })
+        .catch((err) => {
+          console.debug(
+            "License Server Response : ",
+            `Status: ${err?.response?.status} : ${err?.message} :`,
+            err?.response?.data
+          );
+
+          return {
+            code: -2,
+            data: null,
+            result: err?.response?.data?.message || "Invalid Key.",
+          };
+        });
+    } catch (error) {
+      console.error("Key Check Exception :", error);
+      throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Key Check.");
     }
   };
 
@@ -226,8 +273,6 @@ export class License {
   };
 
   private static removeInitFiles = async (org_Id: String = "", reason: String = "init()") => {
-    console.log(`removeInitFiles : for:${reason} : ORG:${org_Id}`);
-
     let orgPublicFile = `${baseFolderPath}/${org_Id}/${publicFile}`;
     let orgPrivateFile = `${baseFolderPath}/${org_Id}/${privateFile}`;
     let orgServerFile = `${baseFolderPath}/${org_Id}/${serverFile}`;
@@ -241,7 +286,7 @@ export class License {
         }
       });
     } catch (error) {
-      console.log("Remove Files Exception :", error);
+      console.error("Remove Files Exception :", error);
       throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Remove Files.");
     }
 
@@ -319,6 +364,12 @@ export class License {
       };
     }
 
+    const keyCheckRes = await this.checkValidKey(license_Key, base_Url);
+
+    if (Number(keyCheckRes?.code) < 0) {
+      return keyCheckRes;
+    }
+
     if (
       !clientData.email ||
       !clientData.orgId ||
@@ -337,7 +388,7 @@ export class License {
 
     let org_Id = clientData.orgId.toString().trim() || "";
 
-    /** make ORG ID path */
+    // /** make ORG ID path */
     try {
       [`${baseFolderPath}/${org_Id}`, `${licenseBaseFolder}/${org_Id}`].forEach((folderPath) => {
         if (!fs.existsSync(folderPath)) {
@@ -391,7 +442,10 @@ export class License {
           await this.removeInitFiles(org_Id, "init()");
           preChecks = await this.checkPreinit(org_Id);
         } catch (error) {
-          console.log("EXCEPTION removeInitFiles :> ", error);
+          console.error("EXCEPTION removeInitFiles/configFiles :> ", error);
+          throw new Error(
+            error instanceof Error ? error.message : "Unknown error occurred > While updating user config files."
+          );
         }
       }
     }
@@ -483,6 +537,49 @@ export class License {
     }
   }
 
+  static async sync(license_Key: string = "", org_Id: string = ""): Promise<responseData> {
+    if (!license_Key || !org_Id) {
+      return {
+        code: -1,
+        data: null,
+        result: "license_Key & org_Id can't be null | blank.",
+      };
+    }
+
+    let orgInitFile = `${baseFolderPath}/${org_Id}/${initFile}`;
+
+    if (fs.existsSync(orgInitFile)) {
+      let fileData = fs.readFileSync(orgInitFile, "utf-8");
+      const parseData = JSON.parse(fileData);
+
+      if (parseData.licenseKey != license_Key) {
+        return {
+          code: -1,
+          data: null,
+          result: "License key doesn't match with existing license, If you want to change key please call update().",
+        };
+      } else {
+        return await this.getLicense(org_Id, parseData).then((exchRes) => {
+          if (Number(exchRes?.code) < 0) {
+            return exchRes;
+          } else {
+            return {
+              code: 1,
+              data: null,
+              result: "License synced successfully.",
+            };
+          }
+        });
+      }
+    } else {
+      return {
+        code: -1,
+        data: null,
+        result: "No exiting init file found please do initialize client using init()",
+      };
+    }
+  }
+
   static async getFeatures(org_Id: string = "", featureName: string = "all"): Promise<responseData> {
     let licenseData = await this.extractLicense(org_Id);
 
@@ -492,8 +589,7 @@ export class License {
     let _lic_meta = {
       issueDate: licenseData?.data?.meta?.issued || "",
       expiryDate: licenseData?.data?.meta?.expiry || "",
-    }
-    // console.log({f:_lic_package?.features})
+    };
 
     if (licenseData?.data?.include?.package && _lic_package?.features) {
       if (featureName?.toLowerCase() == "all") {
@@ -519,7 +615,7 @@ export class License {
             code: 1,
             data: _fList,
             result: "List of all features",
-            meta:_lic_meta || null
+            meta: _lic_meta || null,
           };
         } else {
           return {
@@ -550,8 +646,8 @@ export class License {
                   ? new Date(item?.data)
                   : item.data,
             },
-            meta:_lic_meta || null,
-            result: item ? "Success" : "No Feature Found."
+            meta: _lic_meta || null,
+            result: item ? "Success" : "No Feature Found.",
           };
         } else {
           return {
