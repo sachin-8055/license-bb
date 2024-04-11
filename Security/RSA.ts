@@ -40,6 +40,15 @@ export function rsaEncrypt(keyFilePath: string = "", plainText: string = ""): St
 
 export function rsaDecrypt(keyFilePath: string = "", encryptedText: string = ""): String {
   try {
+
+    if(!keyFilePath || keyFilePath === ""){
+      return "Invalid / blank Private key file path received for decryption";
+    }
+    
+    if(!encryptedText || encryptedText === ""){
+      return "Invalid / blank encrypted data received for decryption";
+    }
+
     let PRIVKEY = fs.readFileSync(keyFilePath, "utf8");
     let plainText = "";
 

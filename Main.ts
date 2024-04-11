@@ -319,8 +319,15 @@ export class License {
 
       const decodedSign: any = await rsaDecrypt(`${baseFolderPath}/${org_Id}/${privateFile}`, _encryptedLicense?.sign);
 
+      if(decodedSign?.toString()?.includes("Invalid")){
+        return { code: -1, result: decodedSign || "Invalid encrypted data received for decrypt.", data: null };
+      }
       /** after success of sign decode uste decoded sign and do 'enc' decryption using AES */
-      let decodedLicense = await aesDecrypt(decodedSign, _encryptedLicense?.enc);
+      let decodedLicense: any = await aesDecrypt(decodedSign, _encryptedLicense?.enc);
+
+      if(decodedLicense?.toString()?.includes("Invalid")){
+        return { code: -1, result: decodedSign || "Invalid encrypted data received for decryption.", data: null };
+      }
 
       const fullLicense: any = typeof decodedLicense == "string" ? JSON.parse(decodedLicense) : decodedLicense;
 

@@ -34,6 +34,16 @@ export function aesEncrypt(secretKey: string = "", plainText: string = ""): Stri
 
 export function aesDecrypt(secretKey: string = "", encryptedText: string = ""): String {
   try {
+    
+    if(!secretKey || secretKey === ""){
+      return "Invalid / blank secret key received for decryption";
+    }
+    
+    if(!encryptedText || encryptedText === ""){
+      return "Invalid / blank encrypted data received for decryption";
+    }
+
+
     let decryptedData = null;
 
     let aesKey = Buffer.from(secretKey, "base64");
