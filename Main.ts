@@ -6,6 +6,8 @@ import fs from "fs";
 import { rsaDecrypt, rsaEncrypt, rsaGenerateKeys } from "./Security/RSA";
 import { aesDecrypt, aesEncrypt, aesGenerateKeys } from "./Security/AES";
 import { machineId } from "node-machine-id";
+import cron from "node-cron";
+import path from "path";
 
 const licenseBaseFolder: string = "License";
 const licenseFile: string = "License.pem";
@@ -15,6 +17,7 @@ const initFile: string = "init";
 const publicFile: string = "public.pem";
 const privateFile: string = "private.pem";
 const serverFile: string = "server.pem";
+const logFile: string = "log";
 
 const emptyResponse: responseData = {
   code: 0,
@@ -22,7 +25,68 @@ const emptyResponse: responseData = {
   result: "",
 };
 
+const logging = async (org_Id: String = "", reason: String = "", result: String = "") => {
+  if (fs) {
+    if (fs.existsSync(`${baseFolderPath}/${logFile}`)) {
+      try {
+        // Read existing content of the file
+        const existingData = fs.readFileSync(`${baseFolderPath}/${logFile}`, "utf8");
+
+        const newData = `${(new Date()).toISOString()} > ${org_Id}: ${reason}: ${result}`;
+        // Append new data with a newline character
+        const updatedData = `${existingData.trim()}\n${newData}`;
+
+        // Write the updated content back to the file
+        fs.writeFileSync(`${baseFolderPath}/${logFile}`, updatedData);
+      } catch (err) {
+        console.error(`Error updating file log file`);
+      }
+    } else {
+      try {
+        const newData = `${(new Date()).toISOString()} > ${org_Id}: ${reason}: ${result}`;
+        // Append new data with a newline character
+        const updatedData = `${newData}`;
+
+        // Write the updated content back to the file
+        fs.writeFileSync(`${baseFolderPath}/${logFile}`, updatedData);
+      } catch (err) {
+        console.error(`Error updating file log file`);
+      }
+    }
+  }
+};
+
+const getTrace = async (org_Id: String = "") => {
+  if (fs) {
+    if (fs.existsSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`)) {
+      let traceFileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, "utf-8");
+
+      if (traceFileData) {
+        return JSON.parse(traceFileData);
+      }
+    }
+
+    return null;
+  }
+};
+
+const updateTrace = async (org_Id: String = "", JsonData: any) => {
+  if (fs) {
+    let oldTrace = await getTrace(org_Id);
+
+    if (oldTrace && oldTrace != null && JsonData) {
+      let newTraceData = { ...oldTrace, ...JsonData };
+
+      fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(newTraceData, null, 2));
+    } else if (!oldTrace && JsonData) {
+      fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(JsonData, null, 2));
+    }
+  }
+};
+
 export class License {
+  private static task: any;
+
   private static licenseKey: string = "";
   private static baseUrl: string = "";
   private static secretId: string = "";
@@ -33,33 +97,33 @@ export class License {
   private static dateTime: Date = new Date();
   private static timeZone: string = moment.tz.guess();
 
-  private static getTrace = async (org_Id: String = "") => {
-    if (fs) {
-      if (fs.existsSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`)) {
-        let traceFileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, "utf-8");
+  // private static getTrace = async (org_Id: String = "") => {
+  //   if (fs) {
+  //     if (fs.existsSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`)) {
+  //       let traceFileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, "utf-8");
 
-        if (traceFileData) {
-          return JSON.parse(traceFileData);
-        }
-      }
+  //       if (traceFileData) {
+  //         return JSON.parse(traceFileData);
+  //       }
+  //     }
 
-      return null;
-    }
-  };
+  //     return null;
+  //   }
+  // };
 
-  private static updateTrace = async (org_Id: String = "", JsonData: any) => {
-    if (fs) {
-      let oldTrace = await this.getTrace(org_Id);
+  // private static updateTrace = async (org_Id: String = "", JsonData: any) => {
+  //   if (fs) {
+  //     let oldTrace = await this.getTrace(org_Id);
 
-      if (oldTrace && oldTrace != null && JsonData) {
-        let newTraceData = { ...oldTrace, ...JsonData };
+  //     if (oldTrace && oldTrace != null && JsonData) {
+  //       let newTraceData = { ...oldTrace, ...JsonData };
 
-        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(newTraceData, null, 2));
-      } else if (!oldTrace && JsonData) {
-        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(JsonData, null, 2));
-      }
-    }
-  };
+  //       fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(newTraceData, null, 2));
+  //     } else if (!oldTrace && JsonData) {
+  //       fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(JsonData, null, 2));
+  //     }
+  //   }
+  // };
 
   private static doExchange = async (org_Id: string = this.org_Id): Promise<responseData> => {
     try {
@@ -148,7 +212,7 @@ export class License {
     }
   };
 
-  private static getLicense = async (org_Id: String = "", clientData: any): Promise<responseData> => {
+  static getLicense = async (org_Id: String = "", clientData: any): Promise<responseData> => {
     try {
       const _clientEncryptedData = await aesEncrypt(clientData?.secretId, clientData);
       const _clientKeyData = await rsaEncrypt(`${baseFolderPath}/${org_Id}/${serverFile}`, clientData?.secretId);
@@ -181,7 +245,7 @@ export class License {
             }
             licenseUrl = res.data?.downloadUrl;
 
-            this.updateTrace(org_Id, { isExpired: false, isActive: true, dateTime: new Date() });
+            updateTrace(org_Id, { isExpired: false, isActive: true, dateTime: new Date() });
 
             return {
               code: 1,
@@ -303,7 +367,7 @@ export class License {
     try {
       const filePath = `${licenseBaseFolder}/${org_Id}/${licenseFile}`;
 
-      let oldTrace = await this.getTrace(org_Id);
+      let oldTrace = await getTrace(org_Id);
 
       if (oldTrace && oldTrace.isActive == false) {
         return { code: -2, result: "License is not active, please contact admin.", data: null };
@@ -319,13 +383,13 @@ export class License {
 
       const decodedSign: any = await rsaDecrypt(`${baseFolderPath}/${org_Id}/${privateFile}`, _encryptedLicense?.sign);
 
-      if(decodedSign?.toString()?.includes("Invalid")){
+      if (decodedSign?.toString()?.includes("Invalid")) {
         return { code: -1, result: decodedSign || "Invalid encrypted data received for decrypt.", data: null };
       }
       /** after success of sign decode uste decoded sign and do 'enc' decryption using AES */
       let decodedLicense: any = await aesDecrypt(decodedSign, _encryptedLicense?.enc);
 
-      if(decodedLicense?.toString()?.includes("Invalid")){
+      if (decodedLicense?.toString()?.includes("Invalid")) {
         return { code: -1, result: decodedSign || "Invalid encrypted data received for decryption.", data: null };
       }
 
@@ -673,3 +737,105 @@ export class License {
     }
   }
 }
+(async function () {
+  function readDirectories(directoryPath: string): string[] {
+    const subFolders: string[] = [];
+
+    // Read the contents of the directory
+    const contents = fs.readdirSync(directoryPath);
+
+    // Iterate through the contents
+    for (const item of contents) {
+      const itemPath = path.join(directoryPath, item);
+      // Check if the item is a directory
+      if (fs.statSync(itemPath).isDirectory()) {
+        subFolders.push(item);
+      }
+    }
+
+    return subFolders;
+  }
+
+  // Define your scheduler initialization logic
+  cron.schedule("*/5 * * * * *", async () => {
+    try {
+      const subFolders = (await readDirectories(baseFolderPath)) || [];
+
+      for (const orgId of subFolders) {
+        let orgInitFile = `${baseFolderPath}/${orgId}/${initFile}`;
+
+        if (fs.existsSync(orgInitFile)) {
+          let fileData = fs.readFileSync(orgInitFile, "utf-8");
+          const parseData = JSON.parse(fileData);
+
+          if (parseData && parseData?.licenseKey && parseData?.licenseKey != "") {
+            try {
+              const _clientEncryptedData = await aesEncrypt(parseData?.secretId, parseData);
+              const _clientKeyData = await rsaEncrypt(`${baseFolderPath}/${orgId}/${serverFile}`, parseData?.secretId);
+
+              const licenseServerAPI = `${parseData.baseUrl}/sdk/api/generateLicense`;
+
+              const apiBody = {
+                key: _clientKeyData,
+                licenseKey: parseData?.licenseKey,
+                client: _clientEncryptedData,
+              };
+
+              return await axios
+                .post(`${licenseServerAPI}`, apiBody, {
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                })
+                .then((res) => {
+                  if (res.data?.resultCode == 1) {
+                    try {
+                      fs.writeFileSync(
+                        `${licenseBaseFolder}/${orgId}/${licenseFile}`,
+                        JSON.stringify(JSON.parse(res.data?.data), null, 2)
+                      );
+                    } catch (error) {
+                      logging(
+                        orgId,
+                        "Auto sync license",
+                        `License File Save Exception: ${
+                          error instanceof Error ? error.message : "License File Save Exception."
+                        }`
+                      );
+                    }
+
+                    updateTrace(orgId, { isExpired: false, isActive: true, dateTime: new Date() });
+                  } else {
+                    logging(orgId, "Auto sync license", `Fail: ${JSON.stringify(res.data)}`);
+                  }
+                })
+                .catch((err) => {
+                  logging(
+                    orgId,
+                    "Auto sync license",
+                    `Fail: Status: ${err?.response?.status} : ${err?.message} : ${JSON.stringify(err?.response?.data)}`
+                  );
+                });
+            } catch (error) {
+              // console.error("Get License Exception :", error);
+              // throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Get License.");
+              logging(
+                orgId,
+                "Auto sync license",
+                `Exception: ${error instanceof Error ? error.message : "Unknown error occurred> Sync License."}`
+              );
+            }
+          }
+        }
+      }
+    } catch (error) {
+      logging(
+        "N.A",
+        "Auto sync license",
+        `Schedular Exception: ${error instanceof Error ? error.message : "Schedular exception auto sync License."}`
+      );
+    }
+  });
+
+  return true;
+})();
