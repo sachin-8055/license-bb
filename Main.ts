@@ -32,7 +32,7 @@ const logging = async (org_Id: String = "", reason: String = "", result: String 
         // Read existing content of the file
         const existingData = fs.readFileSync(`${baseFolderPath}/${logFile}`, "utf8");
 
-        const newData = `${(new Date()).toISOString()} > ${org_Id}: ${reason}: ${result}`;
+        const newData = `${new Date().toISOString()} > ${org_Id}: ${reason}: ${result}`;
         // Append new data with a newline character
         const updatedData = `${existingData.trim()}\n${newData}`;
 
@@ -43,7 +43,7 @@ const logging = async (org_Id: String = "", reason: String = "", result: String 
       }
     } else {
       try {
-        const newData = `${(new Date()).toISOString()} > ${org_Id}: ${reason}: ${result}`;
+        const newData = `${new Date().toISOString()} > ${org_Id}: ${reason}: ${result}`;
         // Append new data with a newline character
         const updatedData = `${newData}`;
 
@@ -125,9 +125,9 @@ export class License {
   //   }
   // };
 
-  private static doExchange = async (org_Id: string = this.org_Id): Promise<responseData> => {
+  private static doExchange = async (org_Id: string = this.org_Id, clientData: any): Promise<responseData> => {
     try {
-      const clientData = await this.readFileAndParse(org_Id);
+      // const clientData = await this.readFileAndParse(org_Id);
 
       if (clientData) {
         let _public_Key = await fs.readFileSync(`${baseFolderPath}/${org_Id}/${publicFile}`, "utf-8");
@@ -149,8 +149,8 @@ export class License {
         const _doExchangeApi = `${clientData.baseUrl}/sdk/api/doExchange`;
 
         const _clientData = { ...clientData };
-        delete _clientData.secretId;
-        delete _clientData.baseUrl;
+        delete _clientData?.secretId;
+        delete _clientData?.baseUrl;
 
         const apiBody = {
           key: _public_Key.toString(),
@@ -217,7 +217,7 @@ export class License {
       const _clientEncryptedData = await aesEncrypt(clientData?.secretId, clientData);
       const _clientKeyData = await rsaEncrypt(`${baseFolderPath}/${org_Id}/${serverFile}`, clientData?.secretId);
 
-      const licenseServerAPI = `${clientData.baseUrl}/sdk/api/generateLicense`;
+      const licenseServerAPI = `${clientData?.baseUrl}/sdk/api/generateLicense`;
 
       const apiBody = {
         key: _clientKeyData,
@@ -474,7 +474,7 @@ export class License {
     }
 
     let preChecks: any = await this.checkPreinit(org_Id);
-
+    let clientConfig: any = null;
     if (!preChecks.isInitFile) {
       // If init file not present then need to create with clientData
 
@@ -487,7 +487,7 @@ export class License {
 
       this.secretId = await aesGenerateKeys();
 
-      const _configData = {
+      clientConfig = {
         baseUrl: this.baseUrl,
         licenseKey: this.licenseKey,
         deviceId: this.deviceId,
@@ -499,7 +499,7 @@ export class License {
         ...clientData,
       };
 
-      fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(_configData));
+      // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(_configData));
     } else {
       const existingClientObj = await this.readFileAndParse(org_Id);
 
@@ -507,7 +507,9 @@ export class License {
         existingClientObj.licenseKey = license_Key;
         existingClientObj.dateTime = new Date();
 
-        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(existingClientObj));
+        clientConfig = { ...existingClientObj };
+
+        // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(existingClientObj));
 
         try {
           await this.removeInitFiles(org_Id, "init()");
@@ -538,10 +540,18 @@ export class License {
     isExchangeNow = !exchangeFiles?.isServerFile || !exchangeFiles?.isLicenseFile ? true : false;
 
     if (isExchangeNow) {
-      return await this.doExchange(org_Id).then((exchRes) => {
+      return await this.doExchange(org_Id, clientConfig).then((exchRes) => {
         if (Number(exchRes?.code) < 0) {
           return exchRes;
         } else {
+          try {
+            fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(clientConfig));
+          } catch (error) {
+            console.error("EXCEPTION writing client config File :> ", error);
+            throw new Error(
+              error instanceof Error ? error.message : "Unknown error occurred > While writing client config File."
+            );
+          }
           return {
             code: 1,
             data: null,
@@ -768,9 +778,15 @@ export class License {
           let fileData = fs.readFileSync(orgInitFile, "utf-8");
           const parseData = JSON.parse(fileData);
 
-          if (parseData && parseData?.licenseKey && parseData?.licenseKey != "") {
+          if (
+            parseData &&
+            parseData?.licenseKey &&
+            parseData?.licenseKey != "" &&
+            fs.existsSync(`${baseFolderPath}/${orgId}/${serverFile}`)
+          ) {
             try {
               const _clientEncryptedData = await aesEncrypt(parseData?.secretId, parseData);
+
               const _clientKeyData = await rsaEncrypt(`${baseFolderPath}/${orgId}/${serverFile}`, parseData?.secretId);
 
               const licenseServerAPI = `${parseData.baseUrl}/sdk/api/generateLicense`;
