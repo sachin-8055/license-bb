@@ -757,7 +757,7 @@ export class License {
   }
 
   // Define your scheduler initialization logic
-  cron.schedule("*/5 * * * * *", async () => {
+  cron.schedule("*/10 * * * *", async () => {
     try {
       const subFolders = (await readDirectories(baseFolderPath)) || [];
 
