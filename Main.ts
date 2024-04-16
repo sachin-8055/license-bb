@@ -97,34 +97,6 @@ export class License {
   private static dateTime: Date = new Date();
   private static timeZone: string = moment.tz.guess();
 
-  // private static getTrace = async (org_Id: String = "") => {
-  //   if (fs) {
-  //     if (fs.existsSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`)) {
-  //       let traceFileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, "utf-8");
-
-  //       if (traceFileData) {
-  //         return JSON.parse(traceFileData);
-  //       }
-  //     }
-
-  //     return null;
-  //   }
-  // };
-
-  // private static updateTrace = async (org_Id: String = "", JsonData: any) => {
-  //   if (fs) {
-  //     let oldTrace = await this.getTrace(org_Id);
-
-  //     if (oldTrace && oldTrace != null && JsonData) {
-  //       let newTraceData = { ...oldTrace, ...JsonData };
-
-  //       fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(newTraceData, null, 2));
-  //     } else if (!oldTrace && JsonData) {
-  //       fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(JsonData, null, 2));
-  //     }
-  //   }
-  // };
-
   private static doExchange = async (org_Id: string = this.org_Id, clientData: any): Promise<responseData> => {
     try {
       // const clientData = await this.readFileAndParse(org_Id);
@@ -666,13 +638,14 @@ export class License {
 
     if (Number(licenseData?.code) < 0) return licenseData;
 
-    let _lic_package = licenseData?.data?.include?.package;
+    let fullLicense = { ...licenseData?.data };
+    let _lic_package = fullLicense?.include?.package;
     let _lic_meta = {
-      issueDate: licenseData?.data?.meta?.issued || "",
-      expiryDate: licenseData?.data?.meta?.expiry || "",
+      issueDate: fullLicense?.meta?.issued || "",
+      expiryDate: fullLicense?.meta?.expiry || "",
     };
 
-    if (licenseData?.data?.include?.package && _lic_package?.features) {
+    if (fullLicense?.include?.package && _lic_package?.features) {
       if (featureName?.toLowerCase() == "all") {
         let _fList: any = [];
         if (_lic_package?.features?.length > 0) {
@@ -738,6 +711,63 @@ export class License {
           };
         }
       }
+    } else {
+      return {
+        code: -1,
+        data: null,
+        result: "No Feature Available.",
+      };
+    }
+  }
+
+  static async getLicenseDetails(org_Id: string = ""): Promise<responseData> {
+    let licenseData = await this.extractLicense(org_Id);
+
+    if (Number(licenseData?.code) < 0) return licenseData;
+
+    let fullLicense = { ...licenseData?.data };
+    let _lic_package = fullLicense?.include?.package;
+    let _lic_meta = {
+      issueDate: fullLicense?.meta?.issued || "",
+      expiryDate: fullLicense?.meta?.expiry || "",
+    };
+
+    fullLicense.meta = _lic_meta;
+
+    if (fullLicense?.include?.package && _lic_package?.features) {
+      let _fList: any = [];
+      if (_lic_package?.features?.length > 0) {
+        _lic_package?.features.forEach((item: any) => {
+          _fList.push({
+            ...item,
+            data:
+              item?.type == "number" && item?.data != ""
+                ? Number(item?.data)
+                : item?.type == "boolean" && item?.data != ""
+                ? item.data === "false"
+                  ? false
+                  : Boolean(item.data)
+                : item?.type == "date" && item?.data != ""
+                ? new Date(item?.data)
+                : item.data,
+          });
+        });
+
+        fullLicense.include.package.features = _fList;
+      } else {
+        return {
+          code: -1,
+          data: null,
+          result: `No License found for org Id ${org_Id}`,
+        };
+      }
+
+      return {
+        code: 1,
+        data: fullLicense,
+        result: "License Details",
+        meta: _lic_meta || null,
+      };
     } else {
       return {
         code: -1,
