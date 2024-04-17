@@ -53,7 +53,9 @@ const logging = async (org_Id: String = "", reason: String = "", result: String 
         console.error(`Error updating file log file`);
       }
     }
+
   }
+  // return true;
 };
 
 const getTrace = async (org_Id: String = "") => {
@@ -796,15 +798,17 @@ export class License {
     return subFolders;
   }
 
+    // cron.schedule("*/10 * * * * *", async () => { // this is 10 sec
   // Define your scheduler initialization logic
-  cron.schedule("*/10 * * * *", async () => {
+  cron.schedule("*/10 * * * *", async () => { /** this is 10 min */
     try {
       const subFolders = (await readDirectories(baseFolderPath)) || [];
 
       for (const orgId of subFolders) {
+
         let orgInitFile = `${baseFolderPath}/${orgId}/${initFile}`;
 
-        if (fs.existsSync(orgInitFile)) {
+          if (fs.existsSync(orgInitFile)) {
           let fileData = fs.readFileSync(orgInitFile, "utf-8");
           const parseData = JSON.parse(fileData);
 
@@ -827,21 +831,21 @@ export class License {
                 client: _clientEncryptedData,
               };
 
-              return await axios
+              await axios
                 .post(`${licenseServerAPI}`, apiBody, {
                   headers: {
                     "Content-Type": "application/json",
                   },
                 })
-                .then((res) => {
+                .then(async (res) => {
                   if (res.data?.resultCode == 1) {
                     try {
                       fs.writeFileSync(
                         `${licenseBaseFolder}/${orgId}/${licenseFile}`,
                         JSON.stringify(JSON.parse(res.data?.data), null, 2)
                       );
-                    } catch (error) {
-                      logging(
+                    } catch (error:any){
+                     logging(
                         orgId,
                         "Auto sync license",
                         `License File Save Exception: ${
@@ -849,19 +853,19 @@ export class License {
                         }`
                       );
                     }
-
                     updateTrace(orgId, { isExpired: false, isActive: true, dateTime: new Date() });
                   } else {
                     logging(orgId, "Auto sync license", `Fail: ${JSON.stringify(res.data)}`);
                   }
                 })
-                .catch((err) => {
+                .catch(async(err) => {
                   logging(
                     orgId,
                     "Auto sync license",
                     `Fail: Status: ${err?.response?.status} : ${err?.message} : ${JSON.stringify(err?.response?.data)}`
                   );
                 });
+                
             } catch (error) {
               // console.error("Get License Exception :", error);
               // throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Get License.");
@@ -872,7 +876,9 @@ export class License {
               );
             }
           }
-        }
+        } 
+      
+        
       }
     } catch (error) {
       logging(
