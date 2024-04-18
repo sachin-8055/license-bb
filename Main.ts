@@ -1,4 +1,4 @@
-import { ip } from "address";
+import ip from "ip";
 import axios from "axios";
 import moment from "moment-timezone";
 import { clientInputData, responseData, rsaKey } from "./DataFormats";
@@ -94,7 +94,7 @@ export class License {
   private static platform: string = "";
   private static deviceId: string = "";
   private static org_Id: string = "default";
-  private static ip: string = ip() || "";
+  private static _ip: string =ip.address() || "";
   private static dateTime: Date = new Date();
   private static timeZone: string = moment.tz.guess();
 
@@ -472,7 +472,7 @@ export class License {
         deviceId: this.deviceId,
         secretId: this.secretId || "",
         platform: this.platform,
-        ip: this.ip,
+        ip: this._ip,
         dateTime: this.dateTime,
         timeZone: this.timeZone,
         ...clientData,
@@ -641,6 +641,7 @@ export class License {
   }
 
   static async getFeatures(org_Id: string = "", featureName: string = "all"): Promise<responseData> {
+
     let licenseData = await this.extractLicense(org_Id);
 
     if (Number(licenseData?.code) < 0) return licenseData;
