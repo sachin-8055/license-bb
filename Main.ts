@@ -53,7 +53,6 @@ const logging = async (org_Id: String = "", reason: String = "", result: String 
         console.error(`Error updating file log file`);
       }
     }
-
   }
   // return true;
 };
@@ -348,28 +347,38 @@ export class License {
       } else if (oldTrace && oldTrace.isExpired == true) {
         return { code: -2, result: "License is Expired, please contact admin.", data: null };
       }
+      if (fs.existsSync(filePath)) {
+        /** Read License File */
+        let _encryptedLicense: any = await fs.readFileSync(filePath, "utf-8");
 
-      /** Read License File */
-      let _encryptedLicense: any = await fs.readFileSync(filePath, "utf-8");
+        /** Format JSON and decode sign */
+        _encryptedLicense = JSON.parse(_encryptedLicense);
 
-      /** Format JSON and decode sign */
-      _encryptedLicense = JSON.parse(_encryptedLicense);
+        const decodedSign: any = await rsaDecrypt(
+          `${baseFolderPath}/${org_Id}/${privateFile}`,
+          _encryptedLicense?.sign
+        );
 
-      const decodedSign: any = await rsaDecrypt(`${baseFolderPath}/${org_Id}/${privateFile}`, _encryptedLicense?.sign);
+        if (decodedSign?.toString()?.includes("Invalid")) {
+          return { code: -1, result: decodedSign || "Invalid encrypted data received for decrypt.", data: null };
+        }
+        /** after success of sign decode uste decoded sign and do 'enc' decryption using AES */
+        let decodedLicense: any = await aesDecrypt(decodedSign, _encryptedLicense?.enc);
 
-      if (decodedSign?.toString()?.includes("Invalid")) {
-        return { code: -1, result: decodedSign || "Invalid encrypted data received for decrypt.", data: null };
+        if (decodedLicense?.toString()?.includes("Invalid")) {
+          return { code: -1, result: decodedSign || "Invalid encrypted data received for decryption.", data: null };
+        }
+
+        const fullLicense: any = typeof decodedLicense == "string" ? JSON.parse(decodedLicense) : decodedLicense;
+
+        return { code: 1, result: "License extracted.", data: fullLicense };
+      } else {
+        return {
+          code: -1,
+          data: null,
+          result: "No license found please sync or init() again.",
+        };
       }
-      /** after success of sign decode uste decoded sign and do 'enc' decryption using AES */
-      let decodedLicense: any = await aesDecrypt(decodedSign, _encryptedLicense?.enc);
-
-      if (decodedLicense?.toString()?.includes("Invalid")) {
-        return { code: -1, result: decodedSign || "Invalid encrypted data received for decryption.", data: null };
-      }
-
-      const fullLicense: any = typeof decodedLicense == "string" ? JSON.parse(decodedLicense) : decodedLicense;
-
-      return { code: 1, result: "License extracted.", data: fullLicense };
     } catch (error) {
       console.error("Extract License Exception>>", error);
       throw new Error(error instanceof Error ? error.message : "Extract License Exception");
@@ -415,19 +424,15 @@ export class License {
       return keyCheckRes;
     }
 
-    if (
-      !clientData.email ||
-      !clientData.orgId ||
-      !clientData.orgName ||
-      !clientData.phone ||
-      !clientData.serverNameAlias ||
-      !clientData.userName ||
-      !clientData.assignType
-    ) {
+    if (!clientData.assignType) {
+      clientData.assignType = "default";
+    }
+
+    if (!clientData.email || !clientData.orgId || !clientData.userName) {
       return {
         code: -1,
         data: null,
-        result: "Please provide valid client data.",
+        result: "Please provide required client data {email,orgId,userName}.",
       };
     }
 
@@ -798,17 +803,17 @@ export class License {
     return subFolders;
   }
 
-    // cron.schedule("*/10 * * * * *", async () => { // this is 10 sec
+  // cron.schedule("*/10 * * * * *", async () => { // this is 10 sec
   // Define your scheduler initialization logic
-  cron.schedule("*/10 * * * *", async () => { /** this is 10 min */
+  cron.schedule("*/10 * * * *", async () => {
+    /** this is 10 min */
     try {
       const subFolders = (await readDirectories(baseFolderPath)) || [];
 
       for (const orgId of subFolders) {
-
         let orgInitFile = `${baseFolderPath}/${orgId}/${initFile}`;
 
-          if (fs.existsSync(orgInitFile)) {
+        if (fs.existsSync(orgInitFile)) {
           let fileData = fs.readFileSync(orgInitFile, "utf-8");
           const parseData = JSON.parse(fileData);
 
@@ -844,8 +849,8 @@ export class License {
                         `${licenseBaseFolder}/${orgId}/${licenseFile}`,
                         JSON.stringify(JSON.parse(res.data?.data), null, 2)
                       );
-                    } catch (error:any){
-                     logging(
+                    } catch (error: any) {
+                      logging(
                         orgId,
                         "Auto sync license",
                         `License File Save Exception: ${
@@ -858,14 +863,13 @@ export class License {
                     logging(orgId, "Auto sync license", `Fail: ${JSON.stringify(res.data)}`);
                   }
                 })
-                .catch(async(err) => {
+                .catch(async (err) => {
                   logging(
                     orgId,
                     "Auto sync license",
                     `Fail: Status: ${err?.response?.status} : ${err?.message} : ${JSON.stringify(err?.response?.data)}`
                   );
                 });
-                
             } catch (error) {
               // console.error("Get License Exception :", error);
               // throw new Error(error instanceof Error ? error.message : "Unknown error occurred> Get License.");
@@ -876,9 +880,7 @@ export class License {
               );
             }
           }
-        } 
-      
-        
+        }
       }
     } catch (error) {
       logging(
