@@ -94,7 +94,7 @@ export class License {
   private static platform: string = "";
   private static deviceId: string = "";
   private static org_Id: string = "default";
-  private static _ip: string =ip.address() || "";
+  private static _ip: string = ip.address() || "";
   private static dateTime: Date = new Date();
   private static timeZone: string = moment.tz.guess();
 
@@ -185,7 +185,7 @@ export class License {
     }
   };
 
-  static getLicense = async (org_Id: String = "", clientData: any): Promise<responseData> => {
+  private static getLicense = async (org_Id: String = "", clientData: any): Promise<responseData> => {
     try {
       const _clientEncryptedData = await aesEncrypt(clientData?.secretId, clientData);
       const _clientKeyData = await rsaEncrypt(`${baseFolderPath}/${org_Id}/${serverFile}`, clientData?.secretId);
@@ -640,8 +640,7 @@ export class License {
     }
   }
 
-  static async getFeatures(org_Id: string = "", featureName: string = "all"): Promise<responseData> {
-
+  static async getFeatures(org_Id: string = "", featureName: string | string[] = "all"): Promise<responseData> {
     let licenseData = await this.extractLicense(org_Id);
 
     if (Number(licenseData?.code) < 0) return licenseData;
@@ -654,7 +653,7 @@ export class License {
     };
 
     if (fullLicense?.include?.package && _lic_package?.features) {
-      if (featureName?.toLowerCase() == "all") {
+      if (typeof featureName === "string" && featureName?.toLowerCase() === "all") {
         let _fList: any = [];
         if (_lic_package?.features?.length > 0) {
           _lic_package?.features.forEach((item: any) => {
@@ -686,6 +685,36 @@ export class License {
             result: `No Feature found with this name ${featureName}`,
           };
         }
+      } else if (typeof featureName === "object" && Array.isArray(featureName)) {
+        const filteredList =
+          _lic_package?.features.length > 0
+            ? _lic_package?.features?.filter((obj: any) => featureName.includes(obj.name))
+            : [];
+        let _fList: any = [];
+        if (filteredList && filteredList?.length > 0) {
+          filteredList?.forEach((item: any) => {
+            _fList.push({
+              ...item,
+              data:
+                item?.type == "number" && item?.data != ""
+                  ? Number(item?.data)
+                  : item?.type == "boolean" && item?.data != ""
+                  ? item.data === "false"
+                    ? false
+                    : Boolean(item.data)
+                  : item?.type == "date" && item?.data != ""
+                  ? new Date(item?.data)
+                  : item.data,
+            });
+          });
+
+          return {
+            code: 1,
+            data: _fList,
+            result: "List of features",
+            meta: _lic_meta || null,
+          };
+        }
       } else {
         const item =
           _lic_package?.features.length > 0
@@ -711,14 +740,15 @@ export class License {
             meta: _lic_meta || null,
             result: item ? "Success" : "No Feature Found.",
           };
-        } else {
-          return {
-            code: -1,
-            data: null,
-            result: `No Feature found with this name ${featureName}`,
-          };
         }
       }
+      return {
+        code: -1,
+        data: null,
+        result: `No Feature found with this name ${
+          typeof featureName === "string" ? featureName : featureName?.join(",")
+        }`,
+      };
     } else {
       return {
         code: -1,
