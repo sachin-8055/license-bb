@@ -640,6 +640,25 @@ export class License {
     }
   }
 
+  private static calculateDays(startDate: string = ""): number {
+    if (startDate != "") {
+      const date = new Date(startDate);
+
+      // Get today's date
+      const today = new Date();
+
+      date.setUTCHours(0, 0, 0, 0);
+      today.setUTCHours(0, 0, 0, 0);
+      // Calculate the difference in milliseconds between the two dates
+      const differenceInMilliseconds = today.getTime() - date.getTime();
+
+      // Convert milliseconds to days
+      const differenceInDays = Math.floor(differenceInMilliseconds / (1000 * 60 * 60 * 24)) + 1;
+
+      return differenceInDays;
+    }
+    return -1;
+  }
   static async getFeatures(org_Id: string = "", featureName: string | string[] = "all"): Promise<responseData> {
     let licenseData = await this.extractLicense(org_Id);
 
@@ -647,49 +666,59 @@ export class License {
 
     let fullLicense = { ...licenseData?.data };
     let _lic_package = fullLicense?.include?.package;
+    let _features = _lic_package?.featuresList || _lic_package?.features || [];
     let _lic_meta = {
       issueDate: fullLicense?.meta?.issued || "",
       expiryDate: fullLicense?.meta?.expiry || "",
     };
+    // console.log(JSON.stringify(_lic_package));
 
-    if (fullLicense?.include?.package && _lic_package?.features) {
-      if (typeof featureName === "string" && featureName?.toLowerCase() === "all") {
-        let _fList: any = [];
-        if (_lic_package?.features?.length > 0) {
-          _lic_package?.features.forEach((item: any) => {
-            _fList.push({
-              ...item,
-              data:
-                item?.type == "number" && item?.data != ""
-                  ? Number(item?.data)
-                  : item?.type == "boolean" && item?.data != ""
-                  ? item.data === "false"
-                    ? false
-                    : Boolean(item.data)
-                  : item?.type == "date" && item?.data != ""
-                  ? new Date(item?.data)
-                  : item.data,
-            });
-          });
+    if (fullLicense?.include?.package && _features && _features?.length > 0) {
+      /** Expiry logic checking */
+      let ExpiryDatsObj = _features?.find((e: any) => e?.name == "Time.Expiry.days");
 
-          return {
-            code: 1,
-            data: _fList,
-            result: "List of all features",
-            meta: _lic_meta || null,
-          };
-        } else {
+      if (ExpiryDatsObj) {
+        let currentDay: number = this.calculateDays(_lic_meta?.issueDate);
+
+        if (currentDay > Number(ExpiryDatsObj?.data)) {
           return {
             code: -1,
             data: null,
-            result: `No Feature found with this name ${featureName}`,
+            result: "License has been expired. Please renew the license.",
+            meta: _lic_meta || null,
           };
         }
+      }
+
+      /** If not Expired extract the features */
+
+      if (typeof featureName === "string" && featureName?.toLowerCase() === "all") {
+        let _fList: any = [];
+        _features.forEach((item: any) => {
+          _fList.push({
+            ...item,
+            data:
+              item?.type == "number" && item?.data != ""
+                ? Number(item?.data)
+                : item?.type == "boolean" && item?.data != ""
+                ? item.data === "false"
+                  ? false
+                  : Boolean(item.data)
+                : item?.type == "date" && item?.data != ""
+                ? new Date(item?.data)
+                : item.data,
+          });
+        });
+
+        return {
+          code: 1,
+          data: _fList,
+          result: "List of all features",
+          meta: _lic_meta || null,
+        };
       } else if (typeof featureName === "object" && Array.isArray(featureName)) {
         const filteredList =
-          _lic_package?.features.length > 0
-            ? _lic_package?.features?.filter((obj: any) => featureName.includes(obj.name))
-            : [];
+          _features.length > 0 ? _features?.filter((obj: any) => featureName.includes(obj.name)) : [];
         let _fList: any = [];
         if (filteredList && filteredList?.length > 0) {
           filteredList?.forEach((item: any) => {
@@ -717,8 +746,8 @@ export class License {
         }
       } else {
         const item =
-          _lic_package?.features.length > 0
-            ? _lic_package?.features?.find((data: any) => data.name.toLowerCase() === featureName.toLowerCase())
+          _features.length > 0
+            ? _features?.find((data: any) => data.name.toLowerCase() === featureName.toLowerCase())
             : null;
 
         if (item) {
