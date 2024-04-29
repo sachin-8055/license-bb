@@ -671,7 +671,6 @@ export class License {
       issueDate: fullLicense?.meta?.issued || "",
       expiryDate: fullLicense?.meta?.expiry || "",
     };
-    // console.log(JSON.stringify(_lic_package));
 
     if (fullLicense?.include?.package && _features && _features?.length > 0) {
       /** Expiry logic checking */
