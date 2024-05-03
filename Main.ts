@@ -102,8 +102,16 @@ export class License {
     try {
       // const clientData = await this.readFileAndParse(org_Id);
 
+      if (!org_Id) {
+        return {
+          code: -1,
+          data: null,
+          result: `No client config found. please call init() with org id '${org_Id}'.`,
+        };
+      }
+
       if (clientData) {
-        let _public_Key = await fs.readFileSync(`${baseFolderPath}/${org_Id}/${publicFile}`, "utf-8");
+        let _public_Key = await fs.readFileSync(`${baseFolderPath}/${org_Id.toString().trim()}/${publicFile}`, "utf-8");
 
         if (!clientData?.licenseKey) {
           return {
@@ -138,9 +146,9 @@ export class License {
           })
           .then(async (res) => {
             if (res.data?.resultCode == 1) {
-              fs.writeFileSync(`${baseFolderPath}/${org_Id}/${serverFile}`, res.data?.data || "");
+              fs.writeFileSync(`${baseFolderPath}/${org_Id.toString().trim()}/${serverFile}`, res.data?.data || "");
 
-              return await this.getLicense(org_Id, clientData).then((getLic) => {
+              return await this.getLicense(org_Id.toString().trim(), clientData).then((getLic) => {
                 if (Number(getLic?.code) < 0) {
                   return getLic;
                 } else {
@@ -176,7 +184,7 @@ export class License {
         return {
           code: -1,
           data: null,
-          result: "No client config found. please call init() with org id.",
+          result: `Invalid client details for org id '${org_Id}'.`,
         };
       }
     } catch (error) {
@@ -373,10 +381,11 @@ export class License {
 
         return { code: 1, result: "License extracted.", data: fullLicense };
       } else {
+        console.log(`No License found at '${filePath}' for org id ${org_Id}`);
         return {
           code: -1,
           data: null,
-          result: "No license found please sync or init() again.",
+          result: `No license found for ${org_Id || "blank org id"}, please sync or init again.`,
         };
       }
     } catch (error) {
@@ -436,7 +445,15 @@ export class License {
       };
     }
 
-    let org_Id = clientData.orgId.toString().trim() || "";
+    let org_Id = clientData?.orgId?.toString()?.trim() || "";
+
+    if (!org_Id) {
+      return {
+        code: -1,
+        data: null,
+        result: `No client config found. please call init() with org id '${org_Id}'.`,
+      };
+    }
 
     // /** make ORG ID path */
     try {
@@ -476,6 +493,7 @@ export class License {
         dateTime: this.dateTime,
         timeZone: this.timeZone,
         ...clientData,
+        orgId: org_Id,
       };
 
       // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(_configData));
@@ -548,7 +566,15 @@ export class License {
   }
 
   static async getConfig(org_Id: String = ""): Promise<responseData> {
-    const clientData = await this.readFileAndParse(org_Id);
+    if (!org_Id) {
+      return {
+        code: -1,
+        data: null,
+        result: `Org id should't be blank '${org_Id}'.`,
+      };
+    }
+
+    const clientData = await this.readFileAndParse(org_Id.toString().trim());
 
     if (!clientData) {
       return {
@@ -606,7 +632,7 @@ export class License {
       };
     }
 
-    let orgInitFile = `${baseFolderPath}/${org_Id}/${initFile}`;
+    let orgInitFile = `${baseFolderPath}/${org_Id.toString().trim()}/${initFile}`;
 
     if (fs.existsSync(orgInitFile)) {
       let fileData = fs.readFileSync(orgInitFile, "utf-8");
@@ -619,7 +645,7 @@ export class License {
           result: "License key doesn't match with existing license, If you want to change key please call update().",
         };
       } else {
-        return await this.getLicense(org_Id, parseData).then((exchRes) => {
+        return await this.getLicense(org_Id.toString().trim(), parseData).then((exchRes) => {
           if (Number(exchRes?.code) < 0) {
             return exchRes;
           } else {
@@ -632,10 +658,11 @@ export class License {
         });
       }
     } else {
+      console.log(`No exiting init file found at '${orgInitFile}' for org id ${org_Id}`);
       return {
         code: -1,
         data: null,
-        result: "No exiting init file found please do initialize client using init()",
+        result: `No exiting init file found for org id ${org_Id}, please do initialize client again.`,
       };
     }
   }
@@ -659,8 +686,17 @@ export class License {
     }
     return -1;
   }
+
   static async getFeatures(org_Id: string = "", featureName: string | string[] = "all"): Promise<responseData> {
-    let licenseData = await this.extractLicense(org_Id);
+    if (!org_Id) {
+      return {
+        code: -1,
+        data: null,
+        result: `Org id should't be blank '${org_Id}'.`,
+      };
+    }
+
+    let licenseData = await this.extractLicense(org_Id.toString().trim());
 
     if (Number(licenseData?.code) < 0) return licenseData;
 
@@ -787,7 +823,15 @@ export class License {
   }
 
   static async getLicenseDetails(org_Id: string = ""): Promise<responseData> {
-    let licenseData = await this.extractLicense(org_Id);
+    if (!org_Id) {
+      return {
+        code: -1,
+        data: null,
+        result: `Org id should't be blank '${org_Id}'.`,
+      };
+    }
+
+    let licenseData = await this.extractLicense(org_Id.toString().trim());
 
     if (Number(licenseData?.code) < 0) return licenseData;
 
@@ -798,12 +842,14 @@ export class License {
       expiryDate: fullLicense?.meta?.expiry || "",
     };
 
+    let featuresList = _lic_package?.featuresList || _lic_package?.features || [];
+
     fullLicense.meta = _lic_meta;
 
-    if (fullLicense?.include?.package && _lic_package?.features) {
+    if (fullLicense?.include?.package && featuresList) {
       let _fList: any = [];
-      if (_lic_package?.features?.length > 0) {
-        _lic_package?.features.forEach((item: any) => {
+      if (featuresList?.length > 0) {
+        featuresList.forEach((item: any) => {
           _fList.push({
             ...item,
             data:
@@ -824,7 +870,7 @@ export class License {
         return {
           code: -1,
           data: null,
-          result: `No License found for org Id ${org_Id}`,
+          result: `No License found for org Id '${org_Id}'`,
         };
       }
 
