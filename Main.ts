@@ -706,6 +706,7 @@ export class License {
     let _lic_meta = {
       issueDate: fullLicense?.meta?.issued || "",
       expiryDate: fullLicense?.meta?.expiry || "",
+      package_id:_lic_package?._id || ""
     };
 
     if (fullLicense?.include?.package && _features && _features?.length > 0) {
@@ -840,6 +841,7 @@ export class License {
     let _lic_meta = {
       issueDate: fullLicense?.meta?.issued || "",
       expiryDate: fullLicense?.meta?.expiry || "",
+      package_id:_lic_package?._id || ""
     };
 
     let featuresList = _lic_package?.featuresList || _lic_package?.features || [];
