@@ -317,7 +317,7 @@ export class License {
     return { isServerFile, isLicenseFile };
   };
 
-  private static removeInitFiles = async (org_Id: String = "", reason: String = "init()") => {
+  private static removeKeyFiles = async (org_Id: String = "", reason: String = "init()") => {
     let orgPublicFile = `${baseFolderPath}/${org_Id}/${publicFile}`;
     let orgPrivateFile = `${baseFolderPath}/${org_Id}/${privateFile}`;
     let orgServerFile = `${baseFolderPath}/${org_Id}/${serverFile}`;
@@ -385,7 +385,7 @@ export class License {
         return {
           code: -1,
           data: null,
-          result: `No license found for ${org_Id || "blank org id"}, please sync or init again.`,
+          result: `No license found for organization ${org_Id || "blank org id"}, please initialize again.`,
         };
       }
     } catch (error) {
@@ -509,15 +509,16 @@ export class License {
         // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(existingClientObj));
 
         try {
-          await this.removeInitFiles(org_Id, "init()");
+          await this.removeKeyFiles(org_Id, "init()");
           preChecks = await this.checkPreinit(org_Id);
         } catch (error) {
-          console.error("EXCEPTION removeInitFiles/configFiles :> ", error);
+          console.error("EXCEPTION removeKeyFiles/configFiles :> ", error);
           throw new Error(
             error instanceof Error ? error.message : "Unknown error occurred > While updating user config files."
           );
         }
       }
+    }
 
     let isExchangeNow: Boolean = false;
 
@@ -569,7 +570,6 @@ export class License {
         }
       });
     }
-  }
 
     return {
       code: 1,
@@ -604,7 +604,11 @@ export class License {
     };
   }
 
-  static async update(license_Key: string = "", org_Id: string = "", assignType: string = ""): Promise<responseData> {
+  static async update(
+    license_Key: string = "",
+    org_Id: string = "",
+    assignType: string = "update"
+  ): Promise<responseData> {
     if (!license_Key || !org_Id) {
       return {
         code: -1,
@@ -619,7 +623,8 @@ export class License {
       let fileData = fs.readFileSync(orgInitFile, "utf-8");
       const parseData = JSON.parse(fileData);
 
-      parseData.assignType == license_Key.toString().trim() ? "default" : assignType;
+      // parseData.assignType == license_Key.toString().trim() ? "default" : assignType;
+      parseData.assignType = assignType;
 
       parseData.licenseKey = license_Key;
       parseData.orgId = org_Id.toString().trim();
