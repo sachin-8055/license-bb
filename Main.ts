@@ -518,7 +518,6 @@ export class License {
           );
         }
       }
-    }
 
     let isExchangeNow: Boolean = false;
 
@@ -556,7 +555,21 @@ export class License {
           };
         }
       });
+    } else {
+      /** If already init file present then sync only */
+      return await this.sync(license_Key, org_Id).then((syncRes) => {
+        if (Number(syncRes?.code) < 0) {
+          return syncRes;
+        } else {
+          return {
+            code: 1,
+            data: null,
+            result: "Successfully license exchange/received and sync.",
+          };
+        }
+      });
     }
+  }
 
     return {
       code: 1,
@@ -600,7 +613,7 @@ export class License {
       };
     }
 
-    let orgInitFile = `${baseFolderPath}/${org_Id}/${initFile}`;
+    let orgInitFile = `${baseFolderPath}/${org_Id.toString().trim()}/${initFile}`;
 
     if (fs.existsSync(orgInitFile)) {
       let fileData = fs.readFileSync(orgInitFile, "utf-8");
@@ -706,7 +719,7 @@ export class License {
     let _lic_meta = {
       issueDate: fullLicense?.meta?.issued || "",
       expiryDate: fullLicense?.meta?.expiry || "",
-      package_id:_lic_package?._id || ""
+      package_id: _lic_package?._id || "",
     };
 
     if (fullLicense?.include?.package && _features && _features?.length > 0) {
@@ -841,7 +854,7 @@ export class License {
     let _lic_meta = {
       issueDate: fullLicense?.meta?.issued || "",
       expiryDate: fullLicense?.meta?.expiry || "",
-      package_id:_lic_package?._id || ""
+      package_id: _lic_package?._id || "",
     };
 
     let featuresList = _lic_package?.featuresList || _lic_package?.features || [];
