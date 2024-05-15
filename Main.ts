@@ -168,6 +168,14 @@ export class License {
             }
           })
           .catch((err) => {
+            if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
+              console.error("License server exception  :", err?.message);
+              throw new Error(
+                err instanceof Error
+                  ? `License server exception : ${err?.message}`
+                  : "Something went wrong at licensing server end."
+              );
+            }
             console.debug(
               "License Server Response : ",
               `Status: ${err?.response?.status} : ${err?.message} : `,
@@ -242,6 +250,15 @@ export class License {
           }
         })
         .catch((err) => {
+          if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
+            console.error("License server exception  :", err?.message);
+            throw new Error(
+              err instanceof Error
+                ? `License server exception : ${err?.message}`
+                : "Something went wrong at licensing server end."
+            );
+          }
+
           console.debug(
             "License Server Response : ",
             `Status: ${err?.response?.status} : ${err?.message} : `,
@@ -286,10 +303,18 @@ export class License {
           }
         })
         .catch((err) => {
+          if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
+            console.error("License server exception  :", err?.message);
+            throw new Error(
+              err instanceof Error
+                ? `License server exception : ${err?.message}`
+                : "Something went wrong at licensing server end."
+            );
+          }
           console.debug(
             "License Server Response : ",
             `Status: ${err?.response?.status} : ${err?.message} :`,
-            err?.response?.data
+            err?.response?.data || err?.response || err
           );
 
           return {
@@ -989,6 +1014,11 @@ export class License {
                   }
                 })
                 .catch(async (err) => {
+                  // if(err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")){
+                  //   console.error("License server exception  :", err?.message);
+                  //   throw new Error(err instanceof Error ? `License server exception : ${err?.message}` : "Something went wrong at licensing server end.");
+                  // }
+
                   logging(
                     orgId,
                     "Auto sync license",
