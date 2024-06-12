@@ -744,30 +744,37 @@ export class License {
     if (Number(licenseData?.code) < 0) return licenseData;
 
     let fullLicense = { ...licenseData?.data };
+
     let _lic_package = fullLicense?.include?.package;
     let _features = _lic_package?.featuresList || _lic_package?.features || [];
     let _lic_meta = {
       issueDate: fullLicense?.meta?.issued || "",
       expiryDate: fullLicense?.meta?.expiry || "",
       package_id: _lic_package?._id || "",
+      isExpired: false,
     };
 
     if (fullLicense?.include?.package && _features && _features?.length > 0) {
       /** Expiry logic checking */
-      let ExpiryDatsObj = _features?.find((e: any) => e?.name == "Time.Expiry.days");
+      /*let ExpiryDatsObj = _features?.find((e: any) => e?.name == "Time.Expiry.days");
 
-      if (ExpiryDatsObj) {
-        let currentDay: number = this.calculateDays(_lic_meta?.issueDate);
+      if (ExpiryDatsObj) {*/
+      /* let currentDay: number = this.calculateDays(_lic_meta?.issueDate);
 
-        if (currentDay > Number(ExpiryDatsObj?.data)) {
-          return {
+        if (currentDay > Number(ExpiryDatsObj?.data)) {*/
+
+      let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
+      if (expiryDateDays >= 2) {
+        _lic_meta.isExpired = true;
+
+        /* return {
             code: -1,
             data: null,
             result: "License has been expired. Please renew the license.",
             meta: _lic_meta || null,
-          };
-        }
+          }; */
       }
+      /*}*/
 
       /** If not Expired extract the features */
 
@@ -885,7 +892,13 @@ export class License {
       issueDate: fullLicense?.meta?.issued || "",
       expiryDate: fullLicense?.meta?.expiry || "",
       package_id: _lic_package?._id || "",
+      isExpired: false,
     };
+
+    let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
+    if (expiryDateDays >= 2) {
+      _lic_meta.isExpired = true;
+    }
 
     let featuresList = _lic_package?.featuresList || _lic_package?.features || [];
 
