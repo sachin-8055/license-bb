@@ -103,28 +103,19 @@ export class License {
       // const clientData = await this.readFileAndParse(org_Id);
 
       if (!org_Id) {
-        return {
-          code: -1,
-          data: null,
-          result: `No client config found. please call init() with org id '${org_Id}'.`,
-        };
+        console.error(`Org id should't be blank '${org_Id}'.`);
+        throw new Error(`Org id should't be blank '${org_Id}'.`);
       }
 
       if (clientData) {
         let _public_Key = await fs.readFileSync(`${baseFolderPath}/${org_Id.toString().trim()}/${publicFile}`, "utf-8");
 
         if (!clientData?.licenseKey) {
-          return {
-            code: -1,
-            data: null,
-            result: "No client license key found, please call init().",
-          };
+          console.error(`No client license key found, please call init() again with required data.`);
+          throw new Error(`No client license key found, please call init() again with required data.`);
         } else if (!_public_Key) {
-          return {
-            code: -1,
-            data: null,
-            result: "No client public key found, please call init().",
-          };
+          console.error(`No client public key found, please call init() again with required data.`);
+          throw new Error(`No client public key found, please call init() again with required data.`);
         }
 
         const _doExchangeApi = `${clientData.baseUrl}/sdk/api/doExchange`;
@@ -160,19 +151,16 @@ export class License {
                 }
               });
             } else {
-              return {
-                code: -1,
-                data: null,
-                result: "Exchange fail with license server.",
-              };
+              console.error(`Exchange fail with license server for org '${org_Id}'.`);
+              throw new Error(`Exchange fail with license server for org '${org_Id}'.`);
             }
           })
           .catch((err) => {
             if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
-              console.error("License server exception  :", err?.message);
+              console.error("Unable to connect License server :", err?.message);
               throw new Error(
                 err instanceof Error
-                  ? `License server exception : ${err?.message}`
+                  ? `Unable to connect License server : ${err?.message}`
                   : "Something went wrong at licensing server end."
               );
             }
@@ -182,18 +170,14 @@ export class License {
               err?.response?.data
             );
 
-            return {
-              code: -2,
-              data: null,
-              result: err?.response?.data?.message || "Fail to get license from server.",
-            };
+            let _errorMsg = err?.response?.data?.message || "Fail to get license from server.";
+
+            console.error({ _errorMsg });
+            throw new Error(_errorMsg);
           });
       } else {
-        return {
-          code: -1,
-          data: null,
-          result: `Invalid client details for org id '${org_Id}'.`,
-        };
+        console.error(`Invalid client details for org id '${org_Id}'.`);
+        throw new Error(`Invalid client details for org id '${org_Id}'.`);
       }
     } catch (error) {
       console.error("Exchange exception : ", error);
@@ -242,19 +226,16 @@ export class License {
               result: "License received and saved.",
             };
           } else {
-            return {
-              code: -1,
-              data: null,
-              result: "Exchange fail with license server.",
-            };
+            console.error(`Get License fail with license server. '${org_Id}'.`);
+            throw new Error(`Get License fail with license server. '${org_Id}'.`);
           }
         })
         .catch((err) => {
           if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
-            console.error("License server exception  :", err?.message);
+            console.error("Unable to connect License server :", err?.message);
             throw new Error(
               err instanceof Error
-                ? `License server exception : ${err?.message}`
+                ? `Unable to connect License server : ${err?.message}`
                 : "Something went wrong at licensing server end."
             );
           }
@@ -265,11 +246,10 @@ export class License {
             err?.response?.data
           );
 
-          return {
-            code: -2,
-            data: null,
-            result: err?.response?.data?.message || "Fail to get license from server.",
-          };
+          let _errorMsg = err?.response?.data?.message || "Fail to get license from server.";
+
+          console.error({ _errorMsg });
+          throw new Error(_errorMsg);
         });
     } catch (error) {
       console.error("Get License Exception :", error);
@@ -295,19 +275,16 @@ export class License {
               result: res.data?.message || "Key is valid",
             };
           } else {
-            return {
-              code: -1,
-              data: null,
-              result: "Key is invalid",
-            };
+            console.error(`Key is invalid.`);
+            throw new Error(`Key is invalid.`);
           }
         })
         .catch((err) => {
           if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
-            console.error("License server exception  :", err?.message);
+            console.error("Unable to connect License server :", err?.message);
             throw new Error(
               err instanceof Error
-                ? `License server exception : ${err?.message}`
+                ? `Unable to connect License server : ${err?.message}`
                 : "Something went wrong at licensing server end."
             );
           }
@@ -317,11 +294,13 @@ export class License {
             err?.response?.data || err?.response || err
           );
 
-          return {
-            code: -2,
-            data: null,
-            result: err?.response?.data?.message || "Invalid Key.",
-          };
+          let _errorMsg =
+            err?.response?.status == 404
+              ? `Invalid license key '${license_Key}', please check the license key`
+              : `Fail to check license key '${license_Key}'`;
+
+          console.error({ _errorMsg });
+          throw new Error(_errorMsg);
         });
     } catch (error) {
       console.error("Key Check Exception :", error);
@@ -393,13 +372,15 @@ export class License {
         );
 
         if (decodedSign?.toString()?.includes("Invalid")) {
-          return { code: -1, result: decodedSign || "Invalid encrypted data received for decrypt.", data: null };
+          console.error(decodedSign || `Invalid encrypted data received for decrypt signature for org ${org_Id}`);
+          throw new Error(decodedSign || "Invalid encrypted data received for decrypt signature.");
         }
-        /** after success of sign decode uste decoded sign and do 'enc' decryption using AES */
+        /** after success of sign decode use decoded sign and do 'enc' decryption using AES */
         let decodedLicense: any = await aesDecrypt(decodedSign, _encryptedLicense?.enc);
 
         if (decodedLicense?.toString()?.includes("Invalid")) {
-          return { code: -1, result: decodedSign || "Invalid encrypted data received for decryption.", data: null };
+          console.error(decodedSign || `Invalid encrypted data received for decrypt license for org ${org_Id}`);
+          throw new Error(decodedSign || "Invalid encrypted data received for decrypt license.");
         }
 
         const fullLicense: any = typeof decodedLicense == "string" ? JSON.parse(decodedLicense) : decodedLicense;
@@ -407,11 +388,8 @@ export class License {
         return { code: 1, result: "License extracted.", data: fullLicense };
       } else {
         console.log(`No License found at '${filePath}' for org id ${org_Id}`);
-        return {
-          code: -1,
-          data: null,
-          result: `No license found for organization ${org_Id || "blank org id"}, please initialize again.`,
-        };
+        console.error(`No license found for organization ${org_Id || "blank org id"}, please initialize again.`);
+        throw new Error(`No license found for organization ${org_Id || "blank org id"}, please initialize again.`);
       }
     } catch (error) {
       console.error("Extract License Exception>>", error);
@@ -427,199 +405,184 @@ export class License {
     clientData: clientInputData
   ): Promise<responseData> {
     try {
-      [baseFolderPath, licenseBaseFolder].forEach((folderPath) => {
-        if (!fs.existsSync(folderPath)) {
-          fs.mkdirSync(folderPath, { recursive: true });
+      try {
+        [baseFolderPath, licenseBaseFolder].forEach((folderPath) => {
+          if (!fs.existsSync(folderPath)) {
+            fs.mkdirSync(folderPath, { recursive: true });
+          }
+        });
+      } catch (error) {
+        console.error("SDK EXCEPTION older Creation Exception:> ", error);
+        throw new Error(error instanceof Error ? error.message : "Unknown error occurred> init folder create.");
+      }
+      if (!base_Url) {
+        console.error(`Please provide valid base url of license server.`);
+        throw new Error(`Please provide valid base url of license server.`);
+      }
+
+      if (!license_Key) {
+        console.error(`Please provide valid license key.`);
+        throw new Error(`Please provide valid license key.`);
+      }
+
+      const keyCheckRes = await this.checkValidKey(license_Key, base_Url);
+
+      if (Number(keyCheckRes?.code) < 0) {
+        return keyCheckRes;
+      }
+
+      if (!clientData.assignType) {
+        clientData.assignType = "default";
+      }
+
+      if (!clientData.email || !clientData.orgId || !clientData.userName) {
+        console.error(
+          `Please provide required client data {email,orgId,userName}. Data received ${JSON.stringify(clientData)}`
+        );
+        throw new Error(`Please provide required client data {email,orgId,userName}.`);
+      }
+
+      let org_Id = clientData?.orgId?.toString()?.trim() || "";
+
+      if (!org_Id) {
+        console.error(`Org id should't be blank '${org_Id}'.`);
+        throw new Error(`Org id should't be blank '${org_Id}'.`);
+      }
+
+      // /** make ORG ID path */
+      try {
+        [`${baseFolderPath}/${org_Id}`, `${licenseBaseFolder}/${org_Id}`].forEach((folderPath) => {
+          if (!fs.existsSync(folderPath)) {
+            fs.mkdirSync(folderPath, { recursive: true });
+          }
+        });
+      } catch (error) {
+        console.error("Path creation error for org id. ", error);
+        throw new Error(
+          error instanceof Error ? error.message : "Unknown error occurred > Path creation error for org id."
+        );
+      }
+
+      let preChecks: any = await this.checkPreinit(org_Id);
+      let clientConfig: any = null;
+      if (!preChecks.isInitFile) {
+        // If init file not present then need to create with clientData
+
+        await machineId().then((id) => {
+          this.deviceId = id;
+        });
+        this.platform = process?.platform || "";
+        this.licenseKey = license_Key;
+        this.baseUrl = base_Url;
+
+        this.secretId = await aesGenerateKeys();
+
+        clientConfig = {
+          baseUrl: this.baseUrl,
+          licenseKey: this.licenseKey,
+          deviceId: this.deviceId,
+          secretId: this.secretId || "",
+          platform: this.platform,
+          ip: this._ip,
+          dateTime: this.dateTime,
+          timeZone: this.timeZone,
+          ...clientData,
+          orgId: org_Id,
+        };
+
+        // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(_configData));
+      } else {
+        const existingClientObj = await this.readFileAndParse(org_Id);
+
+        if (existingClientObj.licenseKey != license_Key) {
+          existingClientObj.licenseKey = license_Key;
+          existingClientObj.dateTime = new Date();
+
+          clientConfig = { ...existingClientObj };
+
+          // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(existingClientObj));
+
+          try {
+            await this.removeKeyFiles(org_Id, "init()");
+            preChecks = await this.checkPreinit(org_Id);
+          } catch (error) {
+            console.error("EXCEPTION removeKeyFiles/configFiles :> ", error);
+            throw new Error(
+              error instanceof Error ? error.message : "Unknown error occurred > While updating user config files."
+            );
+          }
         }
-      });
+      }
+
+      let isExchangeNow: Boolean = false;
+
+      let keyGen: rsaKey;
+      if (!preChecks.isPublicFile || !preChecks.isPrivateFile) {
+        keyGen = await rsaGenerateKeys();
+
+        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${publicFile}`, keyGen.publicKey);
+        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${privateFile}`, keyGen.privateKey);
+
+        isExchangeNow = true;
+      }
+
+      let exchangeFiles = await this.checkExchangeFiles(org_Id);
+
+      isExchangeNow = !exchangeFiles?.isServerFile || !exchangeFiles?.isLicenseFile ? true : false;
+
+      if (isExchangeNow) {
+        return await this.doExchange(org_Id, clientConfig).then((exchRes) => {
+          if (Number(exchRes?.code) < 0) {
+            return exchRes;
+          } else {
+            try {
+              fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(clientConfig));
+            } catch (error) {
+              console.error("EXCEPTION writing client config File :> ", error);
+              throw new Error(
+                error instanceof Error ? error.message : "Unknown error occurred > While writing client config File."
+              );
+            }
+            return {
+              code: 1,
+              data: null,
+              result: "Successfully license exchange/received.",
+            };
+          }
+        });
+      } else {
+        /** If already init file present then sync only */
+        return await this.sync(license_Key, org_Id).then((syncRes) => {
+          if (Number(syncRes?.code) < 0) {
+            return syncRes;
+          } else {
+            return {
+              code: 1,
+              data: null,
+              result: "Successfully license exchange/received and sync.",
+            };
+          }
+        });
+      }
     } catch (error) {
-      console.error("SDK EXCEPTION older Creation Exception:> ", error);
-      throw new Error(error instanceof Error ? error.message : "Unknown error occurred> init folder create.");
-    }
-    if (!base_Url) {
-      return {
-        code: -1,
-        data: null,
-        result: "Please provide valid base url of license server.",
-      };
-    }
-
-    if (!license_Key) {
-      return {
-        code: -1,
-        data: null,
-        result: "Please provide valid license key.",
-      };
-    }
-
-    const keyCheckRes = await this.checkValidKey(license_Key, base_Url);
-
-    if (Number(keyCheckRes?.code) < 0) {
-      return keyCheckRes;
-    }
-
-    if (!clientData.assignType) {
-      clientData.assignType = "default";
-    }
-
-    if (!clientData.email || !clientData.orgId || !clientData.userName) {
-      return {
-        code: -1,
-        data: null,
-        result: "Please provide required client data {email,orgId,userName}.",
-      };
-    }
-
-    let org_Id = clientData?.orgId?.toString()?.trim() || "";
-
-    if (!org_Id) {
-      return {
-        code: -1,
-        data: null,
-        result: `No client config found. please call init() with org id '${org_Id}'.`,
-      };
-    }
-
-    // /** make ORG ID path */
-    try {
-      [`${baseFolderPath}/${org_Id}`, `${licenseBaseFolder}/${org_Id}`].forEach((folderPath) => {
-        if (!fs.existsSync(folderPath)) {
-          fs.mkdirSync(folderPath, { recursive: true });
-        }
-      });
-    } catch (error) {
-      console.error("Path creation error for org id. ", error);
+      console.error("Initialization fail: ", error);
       throw new Error(
         error instanceof Error ? error.message : "Unknown error occurred > Path creation error for org id."
       );
     }
-
-    let preChecks: any = await this.checkPreinit(org_Id);
-    let clientConfig: any = null;
-    if (!preChecks.isInitFile) {
-      // If init file not present then need to create with clientData
-
-      await machineId().then((id) => {
-        this.deviceId = id;
-      });
-      this.platform = process?.platform || "";
-      this.licenseKey = license_Key;
-      this.baseUrl = base_Url;
-
-      this.secretId = await aesGenerateKeys();
-
-      clientConfig = {
-        baseUrl: this.baseUrl,
-        licenseKey: this.licenseKey,
-        deviceId: this.deviceId,
-        secretId: this.secretId || "",
-        platform: this.platform,
-        ip: this._ip,
-        dateTime: this.dateTime,
-        timeZone: this.timeZone,
-        ...clientData,
-        orgId: org_Id,
-      };
-
-      // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(_configData));
-    } else {
-      const existingClientObj = await this.readFileAndParse(org_Id);
-
-      if (existingClientObj.licenseKey != license_Key) {
-        existingClientObj.licenseKey = license_Key;
-        existingClientObj.dateTime = new Date();
-
-        clientConfig = { ...existingClientObj };
-
-        // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(existingClientObj));
-
-        try {
-          await this.removeKeyFiles(org_Id, "init()");
-          preChecks = await this.checkPreinit(org_Id);
-        } catch (error) {
-          console.error("EXCEPTION removeKeyFiles/configFiles :> ", error);
-          throw new Error(
-            error instanceof Error ? error.message : "Unknown error occurred > While updating user config files."
-          );
-        }
-      }
-    }
-
-    let isExchangeNow: Boolean = false;
-
-    let keyGen: rsaKey;
-    if (!preChecks.isPublicFile || !preChecks.isPrivateFile) {
-      keyGen = await rsaGenerateKeys();
-
-      fs.writeFileSync(`${baseFolderPath}/${org_Id}/${publicFile}`, keyGen.publicKey);
-      fs.writeFileSync(`${baseFolderPath}/${org_Id}/${privateFile}`, keyGen.privateKey);
-
-      isExchangeNow = true;
-    }
-
-    let exchangeFiles = await this.checkExchangeFiles(org_Id);
-
-    isExchangeNow = !exchangeFiles?.isServerFile || !exchangeFiles?.isLicenseFile ? true : false;
-
-    if (isExchangeNow) {
-      return await this.doExchange(org_Id, clientConfig).then((exchRes) => {
-        if (Number(exchRes?.code) < 0) {
-          return exchRes;
-        } else {
-          try {
-            fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(clientConfig));
-          } catch (error) {
-            console.error("EXCEPTION writing client config File :> ", error);
-            throw new Error(
-              error instanceof Error ? error.message : "Unknown error occurred > While writing client config File."
-            );
-          }
-          return {
-            code: 1,
-            data: null,
-            result: "Successfully license exchange/received.",
-          };
-        }
-      });
-    } else {
-      /** If already init file present then sync only */
-      return await this.sync(license_Key, org_Id).then((syncRes) => {
-        if (Number(syncRes?.code) < 0) {
-          return syncRes;
-        } else {
-          return {
-            code: 1,
-            data: null,
-            result: "Successfully license exchange/received and sync.",
-          };
-        }
-      });
-    }
-
-    return {
-      code: 1,
-      data: null,
-      result: "License already exist with provided license key.",
-    };
   }
 
   static async getConfig(org_Id: String = ""): Promise<responseData> {
     if (!org_Id) {
-      return {
-        code: -1,
-        data: null,
-        result: `Org id should't be blank '${org_Id}'.`,
-      };
+      console.error(`Org id should't be blank '${org_Id}'.`);
+      throw new Error(`Org id should't be blank '${org_Id}'.`);
     }
 
     const clientData = await this.readFileAndParse(org_Id.toString().trim());
 
     if (!clientData) {
-      return {
-        code: -1,
-        data: null,
-        result: "No client config found. please call init() with org id.",
-      };
+      console.error(`No client config found. please call init() with org id ${org_Id}.`);
+      throw new Error(`No client config found. please call init() with org id ${org_Id}.`);
     }
 
     return {
@@ -635,11 +598,8 @@ export class License {
     assignType: string = "update"
   ): Promise<responseData> {
     if (!license_Key || !org_Id) {
-      return {
-        code: -1,
-        data: null,
-        result: "license_Key & org_Id can't be null | blank.",
-      };
+      console.error(`license_Key & org_Id should't be blank '${org_Id}'.`);
+      throw new Error(`license_Key & org_Id should't be blank '${org_Id}'.`);
     }
 
     let orgInitFile = `${baseFolderPath}/${org_Id.toString().trim()}/${initFile}`;
@@ -658,21 +618,15 @@ export class License {
       const res_init = await this.init(parseData?.baseUrl, license_Key, parseData);
       return res_init;
     } else {
-      return {
-        code: -1,
-        data: null,
-        result: "No exiting init file found please do initialize client using init()",
-      };
+      console.error(`No exiting init file found please do initialize client using init() org id ${org_Id}.`);
+      throw new Error(`No exiting init file found please do initialize client using init()`);
     }
   }
 
   static async sync(license_Key: string = "", org_Id: string = ""): Promise<responseData> {
     if (!license_Key || !org_Id) {
-      return {
-        code: -1,
-        data: null,
-        result: "license_Key & org_Id can't be null | blank.",
-      };
+      console.error(`license_Key & org_Id should't be blank '${org_Id}'.`);
+      throw new Error(`license_Key & org_Id should't be blank '${org_Id}'.`);
     }
 
     let orgInitFile = `${baseFolderPath}/${org_Id.toString().trim()}/${initFile}`;
@@ -682,11 +636,8 @@ export class License {
       const parseData = JSON.parse(fileData);
 
       if (parseData.licenseKey != license_Key) {
-        return {
-          code: -1,
-          data: null,
-          result: "License key doesn't match with existing license, If you want to change key please call update().",
-        };
+        console.error(`License key '${license_Key}' doesn't match with existing license to sync.`);
+        throw new Error(`License key '${license_Key}' doesn't match with existing license to sync.`);
       } else {
         return await this.getLicense(org_Id.toString().trim(), parseData).then((exchRes) => {
           if (Number(exchRes?.code) < 0) {
@@ -701,12 +652,8 @@ export class License {
         });
       }
     } else {
-      console.log(`No exiting init file found at '${orgInitFile}' for org id ${org_Id}`);
-      return {
-        code: -1,
-        data: null,
-        result: `No exiting init file found for org id ${org_Id}, please do initialize client again.`,
-      };
+      console.error(`No exiting init file found for org id ${org_Id}, please do initialize client again.`);
+      throw new Error(`No exiting init file found for org id ${org_Id}, please do initialize client again.`);
     }
   }
 
@@ -732,11 +679,8 @@ export class License {
 
   static async getFeatures(org_Id: string = "", featureName: string | string[] = "all"): Promise<responseData> {
     if (!org_Id) {
-      return {
-        code: -1,
-        data: null,
-        result: `Org id should't be blank '${org_Id}'.`,
-      };
+      console.error(`Org id should't be blank '${org_Id}'.`);
+      throw new Error(`Org id should't be blank '${org_Id}'.`);
     }
 
     let licenseData = await this.extractLicense(org_Id.toString().trim());
@@ -756,25 +700,11 @@ export class License {
 
     if (fullLicense?.include?.package && _features && _features?.length > 0) {
       /** Expiry logic checking */
-      /*let ExpiryDatsObj = _features?.find((e: any) => e?.name == "Time.Expiry.days");
-
-      if (ExpiryDatsObj) {*/
-      /* let currentDay: number = this.calculateDays(_lic_meta?.issueDate);
-
-        if (currentDay > Number(ExpiryDatsObj?.data)) {*/
 
       let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
       if (expiryDateDays >= 2) {
         _lic_meta.isExpired = true;
-
-        /* return {
-            code: -1,
-            data: null,
-            result: "License has been expired. Please renew the license.",
-            meta: _lic_meta || null,
-          }; */
       }
-      /*}*/
 
       /** If not Expired extract the features */
 
@@ -838,7 +768,7 @@ export class License {
 
         if (item) {
           return {
-            code: item ? 1 : -1,
+            code: 1,
             data: {
               ...item,
               data:
@@ -857,29 +787,23 @@ export class License {
           };
         }
       }
-      return {
-        code: -1,
-        data: null,
-        result: `No Feature found with this name ${
-          typeof featureName === "string" ? featureName : featureName?.join(",")
-        }`,
-      };
+
+      let _errorMsg = `No Feature found with this name '${
+        typeof featureName === "string" ? featureName : featureName?.join(",")
+      }'`;
+
+      console.error({ _errorMsg });
+      throw new Error(_errorMsg);
     } else {
-      return {
-        code: -1,
-        data: null,
-        result: "No Feature Available.",
-      };
+      console.error("No feature available in current license.");
+      throw new Error("No feature available in current license.");
     }
   }
 
   static async getLicenseDetails(org_Id: string = ""): Promise<responseData> {
     if (!org_Id) {
-      return {
-        code: -1,
-        data: null,
-        result: `Org id should't be blank '${org_Id}'.`,
-      };
+      console.error(`Org id should't be blank '${org_Id}'.`);
+      throw new Error(`Org id should't be blank '${org_Id}'.`);
     }
 
     let licenseData = await this.extractLicense(org_Id.toString().trim());
@@ -904,47 +828,43 @@ export class License {
 
     fullLicense.meta = _lic_meta;
 
-    if (fullLicense?.include?.package && featuresList) {
-      let _fList: any = [];
-      if (featuresList?.length > 0) {
-        featuresList.forEach((item: any) => {
-          _fList.push({
-            ...item,
-            data:
-              item?.type == "number" && item?.data != ""
-                ? Number(item?.data)
-                : item?.type == "boolean" && item?.data != ""
-                ? item.data === "false"
-                  ? false
-                  : Boolean(item.data)
-                : item?.type == "date" && item?.data != ""
-                ? new Date(item?.data)
-                : item.data,
-          });
+    /*if (fullLicense?.include?.package && featuresList) {*/
+
+    let _fList: any = [];
+    if (featuresList?.length > 0) {
+      featuresList.forEach((item: any) => {
+        _fList.push({
+          ...item,
+          data:
+            item?.type == "number" && item?.data != ""
+              ? Number(item?.data)
+              : item?.type == "boolean" && item?.data != ""
+              ? item.data === "false"
+                ? false
+                : Boolean(item.data)
+              : item?.type == "date" && item?.data != ""
+              ? new Date(item?.data)
+              : item.data,
         });
-
-        fullLicense.include.package.features = _fList;
-      } else {
-        return {
-          code: -1,
-          data: null,
-          result: `No License found for org Id '${org_Id}'`,
-        };
-      }
-
-      return {
-        code: 1,
-        data: fullLicense,
-        result: "License Details",
-        meta: _lic_meta || null,
-      };
-    } else {
-      return {
-        code: -1,
-        data: null,
-        result: "No Feature Available.",
-      };
+      });
     }
+    /*else {
+        console.error(`No License found for org Id '${org_Id}' to get details.`);
+        throw new Error(`No License found for org Id '${org_Id}' to get details.`);
+        
+      }*/
+    fullLicense.include.package.features = _fList;
+
+    return {
+      code: 1,
+      data: fullLicense,
+      result: "License Details",
+      meta: _lic_meta || null,
+    };
+    /*} else {
+      console.error(`No Feature Available.`);
+      throw new Error(`No Feature Available.`);      
+    }*/
   }
 }
 (async function () {
