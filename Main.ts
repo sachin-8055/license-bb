@@ -677,67 +677,46 @@ export class License {
     return -1;
   }
 
-  static async getFeatures(org_Id: string = "", featureName: string | string[] = "all"): Promise<responseData> {
-    if (!org_Id) {
-      console.error(`Org id should't be blank '${org_Id}'.`);
-      throw new Error(`Org id should't be blank '${org_Id}'.`);
-    }
-
-    let licenseData = await this.extractLicense(org_Id.toString().trim());
-
-    if (Number(licenseData?.code) < 0) return licenseData;
-
-    let fullLicense = { ...licenseData?.data };
-
-    let _lic_package = fullLicense?.include?.package;
-    let _features = _lic_package?.featuresList || _lic_package?.features || [];
-    let _lic_meta = {
-      issueDate: fullLicense?.meta?.issued || "",
-      expiryDate: fullLicense?.meta?.expiry || "",
-      package_id: _lic_package?._id || "",
-      isExpired: false,
-    };
-
-    if (fullLicense?.include?.package && _features && _features?.length > 0) {
-      /** Expiry logic checking */
-
-      let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
-      if (expiryDateDays >= 2) {
-        _lic_meta.isExpired = true;
+  static async getFeatures(org_Id: string = "", featureName: string | string[] | any = "all"): Promise<responseData> {
+    try {
+      if (!org_Id) {
+        console.error(`Org id should't be blank '${org_Id}'.`);
+        throw new Error(`Org id should't be blank '${org_Id}'.`);
+      }
+      if (!featureName) {
+        console.debug(`Feature name should't be blank '${featureName}', Now auto set to "all".`);
+        // throw new Error(`Feature name should't be blank '${featureName}'.`);
+        featureName = "all";
       }
 
-      /** If not Expired extract the features */
+      let licenseData = await this.extractLicense(org_Id.toString().trim());
 
-      if (typeof featureName === "string" && featureName?.toLowerCase() === "all") {
-        let _fList: any = [];
-        _features.forEach((item: any) => {
-          _fList.push({
-            ...item,
-            data:
-              item?.type == "number" && item?.data != ""
-                ? Number(item?.data)
-                : item?.type == "boolean" && item?.data != ""
-                ? item.data === "false"
-                  ? false
-                  : Boolean(item.data)
-                : item?.type == "date" && item?.data != ""
-                ? new Date(item?.data)
-                : item.data,
-          });
-        });
+      if (Number(licenseData?.code) < 0) return licenseData;
 
-        return {
-          code: 1,
-          data: _fList,
-          result: "List of all features",
-          meta: _lic_meta || null,
-        };
-      } else if (typeof featureName === "object" && Array.isArray(featureName)) {
-        const filteredList =
-          _features.length > 0 ? _features?.filter((obj: any) => featureName.includes(obj.name)) : [];
-        let _fList: any = [];
-        if (filteredList && filteredList?.length > 0) {
-          filteredList?.forEach((item: any) => {
+      let fullLicense = { ...licenseData?.data };
+
+      let _lic_package = fullLicense?.include?.package;
+      let _features = _lic_package?.featuresList || _lic_package?.features || [];
+      let _lic_meta = {
+        issueDate: fullLicense?.meta?.issued || "",
+        expiryDate: fullLicense?.meta?.expiry || "",
+        package_id: _lic_package?._id || "",
+        isExpired: false,
+      };
+
+      if (fullLicense?.include?.package && _features && _features?.length > 0) {
+        /** Expiry logic checking */
+
+        let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
+        if (expiryDateDays >= 2) {
+          _lic_meta.isExpired = true;
+        }
+
+        /** If not Expired extract the features */
+
+        if (typeof featureName === "string" && featureName?.toLowerCase() === "all") {
+          let _fList: any = [];
+          _features.forEach((item: any) => {
             _fList.push({
               ...item,
               data:
@@ -756,115 +735,151 @@ export class License {
           return {
             code: 1,
             data: _fList,
-            result: "List of features",
+            result: "List of all features",
             meta: _lic_meta || null,
           };
+        } else if (typeof featureName === "object" && Array.isArray(featureName)) {
+          const filteredList =
+            _features.length > 0 ? _features?.filter((obj: any) => featureName?.includes(obj.name)) : [];
+          let _fList: any = [];
+          if (filteredList && filteredList?.length > 0) {
+            filteredList?.forEach((item: any) => {
+              _fList.push({
+                ...item,
+                data:
+                  item?.type == "number" && item?.data != ""
+                    ? Number(item?.data)
+                    : item?.type == "boolean" && item?.data != ""
+                    ? item.data === "false"
+                      ? false
+                      : Boolean(item.data)
+                    : item?.type == "date" && item?.data != ""
+                    ? new Date(item?.data)
+                    : item.data,
+              });
+            });
+
+            return {
+              code: 1,
+              data: _fList,
+              result: "List of features",
+              meta: _lic_meta || null,
+            };
+          }
+        } else {
+          const item =
+            _features.length > 0
+              ? _features?.find((data: any) => data?.name?.toLowerCase() === featureName?.toLowerCase())
+              : null;
+
+          if (item) {
+            return {
+              code: 1,
+              data: {
+                ...item,
+                data:
+                  item?.type == "number" && item?.data != ""
+                    ? Number(item?.data)
+                    : item?.type == "boolean" && item?.data != ""
+                    ? item.data === "false"
+                      ? false
+                      : Boolean(item.data)
+                    : item?.type == "date" && item?.data != ""
+                    ? new Date(item?.data)
+                    : item.data,
+              },
+              meta: _lic_meta || null,
+              result: item ? "Success" : "No Feature Found.",
+            };
+          }
         }
+
+        let _errorMsg = `No Feature found with this name '${
+          typeof featureName === "string" ? featureName : featureName?.join(",")
+        }'`;
+
+        console.error({ _errorMsg });
+        throw new Error(_errorMsg);
       } else {
-        const item =
-          _features.length > 0
-            ? _features?.find((data: any) => data.name.toLowerCase() === featureName.toLowerCase())
-            : null;
-
-        if (item) {
-          return {
-            code: 1,
-            data: {
-              ...item,
-              data:
-                item?.type == "number" && item?.data != ""
-                  ? Number(item?.data)
-                  : item?.type == "boolean" && item?.data != ""
-                  ? item.data === "false"
-                    ? false
-                    : Boolean(item.data)
-                  : item?.type == "date" && item?.data != ""
-                  ? new Date(item?.data)
-                  : item.data,
-            },
-            meta: _lic_meta || null,
-            result: item ? "Success" : "No Feature Found.",
-          };
-        }
+        console.error("No feature available in current license.");
+        throw new Error("No feature available in current license.");
       }
-
-      let _errorMsg = `No Feature found with this name '${
-        typeof featureName === "string" ? featureName : featureName?.join(",")
-      }'`;
-
-      console.error({ _errorMsg });
-      throw new Error(_errorMsg);
-    } else {
-      console.error("No feature available in current license.");
-      throw new Error("No feature available in current license.");
+    } catch (error) {
+      console.error("Get License Features fail: ", error);
+      throw new Error(error instanceof Error ? error.message : "Unknown error occurred > GetFeatures().");
     }
   }
 
   static async getLicenseDetails(org_Id: string = ""): Promise<responseData> {
-    if (!org_Id) {
-      console.error(`Org id should't be blank '${org_Id}'.`);
-      throw new Error(`Org id should't be blank '${org_Id}'.`);
-    }
+    try {
+      if (!org_Id) {
+        console.error(`Org id should't be blank '${org_Id}'.`);
+        throw new Error(`Org id should't be blank '${org_Id}'.`);
+      }
 
-    let licenseData = await this.extractLicense(org_Id.toString().trim());
+      let licenseData = await this.extractLicense(org_Id.toString().trim());
 
-    if (Number(licenseData?.code) < 0) return licenseData;
+      if (Number(licenseData?.code) < 0) return licenseData;
 
-    let fullLicense = { ...licenseData?.data };
-    let _lic_package = fullLicense?.include?.package;
-    let _lic_meta = {
-      issueDate: fullLicense?.meta?.issued || "",
-      expiryDate: fullLicense?.meta?.expiry || "",
-      package_id: _lic_package?._id || "",
-      isExpired: false,
-    };
+      let fullLicense = { ...licenseData?.data };
+      let _lic_package = fullLicense?.include?.package;
+      let _lic_meta = {
+        issueDate: fullLicense?.meta?.issued || "",
+        expiryDate: fullLicense?.meta?.expiry || "",
+        package_id: _lic_package?._id || "",
+        isExpired: false,
+      };
 
-    let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
-    if (expiryDateDays >= 2) {
-      _lic_meta.isExpired = true;
-    }
+      let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
+      if (expiryDateDays >= 2) {
+        _lic_meta.isExpired = true;
+      }
 
-    let featuresList = _lic_package?.featuresList || _lic_package?.features || [];
+      let featuresList = _lic_package?.featuresList || _lic_package?.features || [];
 
-    fullLicense.meta = _lic_meta;
+      fullLicense.meta = _lic_meta;
 
-    /*if (fullLicense?.include?.package && featuresList) {*/
+      /*if (fullLicense?.include?.package && featuresList) {*/
 
-    let _fList: any = [];
-    if (featuresList?.length > 0) {
-      featuresList.forEach((item: any) => {
-        _fList.push({
-          ...item,
-          data:
-            item?.type == "number" && item?.data != ""
-              ? Number(item?.data)
-              : item?.type == "boolean" && item?.data != ""
-              ? item.data === "false"
-                ? false
-                : Boolean(item.data)
-              : item?.type == "date" && item?.data != ""
-              ? new Date(item?.data)
-              : item.data,
+      let _fList: any = [];
+      if (featuresList?.length > 0) {
+        featuresList.forEach((item: any) => {
+          _fList.push({
+            ...item,
+            data:
+              item?.type == "number" && item?.data != ""
+                ? Number(item?.data)
+                : item?.type == "boolean" && item?.data != ""
+                ? item.data === "false"
+                  ? false
+                  : Boolean(item.data)
+                : item?.type == "date" && item?.data != ""
+                ? new Date(item?.data)
+                : item.data,
+          });
         });
-      });
-    }
-    /*else {
+      }
+      /*else {
         console.error(`No License found for org Id '${org_Id}' to get details.`);
         throw new Error(`No License found for org Id '${org_Id}' to get details.`);
         
       }*/
-    fullLicense.include.package.features = _fList;
+      fullLicense.include.package.features = _fList;
 
-    return {
-      code: 1,
-      data: fullLicense,
-      result: "License Details",
-      meta: _lic_meta || null,
-    };
-    /*} else {
+      return {
+        code: 1,
+        data: fullLicense,
+        result: "License Details",
+        meta: _lic_meta || null,
+      };
+      /*} else {
       console.error(`No Feature Available.`);
       throw new Error(`No Feature Available.`);      
     }*/
+    } catch (error) {
+      console.error("Get License Details fail: ", error);
+      throw new Error(error instanceof Error ? error.message : "Unknown error occurred > GetLicenseDetail().");
+    }
   }
 }
 (async function () {
