@@ -126,7 +126,10 @@ export class License {
 
         const apiBody = {
           key: _public_Key.toString(),
-          ..._clientData,
+          licenseKey: _clientData?.licenseKey,
+          email: _clientData?.email,
+          orgId: _clientData?.orgId,
+          assignType: _clientData?.assignType,
         };
 
         return await axios
@@ -903,7 +906,7 @@ export class License {
 
   // cron.schedule("*/10 * * * * *", async () => { // this is 10 sec
   // Define your scheduler initialization logic
-  cron.schedule("*/10 * * * *", async () => {
+  cron.schedule("*/30 * * * *", async () => {
     /** this is 10 min */
     try {
       const subFolders = (await readDirectories(baseFolderPath)) || [];
