@@ -16,3 +16,9 @@ export type responseData = {
   result: String | null | undefined,
   meta?: Object | any | null
 }
+export type DeviceDetails = {
+  deviceId: string | undefined;
+  osType: string | undefined;
+  deviceType?: 'Desktop' | 'Mobile'| string | undefined;
+  browser?: string | undefined | '';
+}

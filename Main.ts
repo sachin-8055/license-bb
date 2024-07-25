@@ -1,29 +1,28 @@
 import ip from "ip";
+import os from "os";
 import axios from "axios";
 import moment from "moment-timezone";
-import { clientInputData, responseData, rsaKey } from "./DataFormats";
+import { clientInputData, DeviceDetails, responseData, rsaKey } from "./DataFormats";
 import fs from "fs";
 import { rsaDecrypt, rsaEncrypt, rsaGenerateKeys } from "./Security/RSA";
 import { aesDecrypt, aesEncrypt, aesGenerateKeys } from "./Security/AES";
 import { machineId } from "node-machine-id";
 import cron from "node-cron";
 import path from "path";
+import { sha256 } from "hash.js";
 
 const licenseBaseFolder: string = "License";
 const licenseFile: string = "License.pem";
 const baseFolderPath: string = "bbLicenseUtils";
 const infoTracerFile: string = "infoTrace.json";
 const initFile: string = "init";
+const deviceFile: string = "device.json";
 const publicFile: string = "public.pem";
 const privateFile: string = "private.pem";
 const serverFile: string = "server.pem";
 const logFile: string = "log";
 
-const emptyResponse: responseData = {
-  code: 0,
-  data: {},
-  result: "",
-};
+const OSLIST: Array<string> = ["win32", "win64", "linux", "darwin"];
 
 const logging = async (org_Id: String = "", reason: String = "", result: String = "") => {
   if (fs) {
@@ -85,16 +84,97 @@ const updateTrace = async (org_Id: String = "", JsonData: any) => {
   }
 };
 
+const hashString = async (input: string) => {
+  const data = new TextEncoder().encode(input);
+
+  const hash = sha256().update(data).digest("hex");
+
+  return hash;
+};
+
+const getDeviceDetails = async (): Promise<DeviceDetails> => {
+  let _deviceDetails: DeviceDetails = {
+    deviceId: "",
+    osType: "",
+    deviceType: "",
+    browser: "",
+  };
+
+  let filePath = `${baseFolderPath}/${deviceFile}`;
+  if (fs.existsSync(filePath)) {
+    let fileData = fs.readFileSync(`${baseFolderPath}/${deviceFile}`, "utf-8");
+    const parseData = fileData ? JSON.parse(fileData) : null;
+    if (parseData) {
+      return parseData || null;
+    }
+  }
+
+  const platform = process?.platform || os.platform();
+  const _host = process?.env?.HOSTNAME || os.hostname();
+  /** Type of Device ID Start */
+
+  const systemInfo = `${_host || ""}${process?.arch || ""}${platform}${process?.version || ""}`;
+
+  const hashedData = await hashString(systemInfo);
+  _deviceDetails.deviceId = hashedData;
+
+  /** Type of Device ID End */
+
+  /** Type of OS Start */
+  if (platform?.toLowerCase() === "linux") {
+    _deviceDetails.osType = "Linux";
+  } else if (platform?.toLowerCase() === "darwin") {
+    _deviceDetails.osType = "Mac";
+  } else if (platform?.toLowerCase() === "win32") {
+    _deviceDetails.osType = "Windows";
+  } else {
+    _deviceDetails.osType = "Unknown";
+  }
+
+  /** Type of OS END */
+
+  /** Type of Device Start */
+  if (fs.existsSync("/proc/1/cgroup")) {
+    fs.readFile("/proc/1/cgroup", "utf8", (err, data) => {
+      if (err) {
+        console.error("Error reading /proc/1/cgroup to identify MACHINE :", err);
+      } else {
+        if (data.includes("/docker/")) {
+          _deviceDetails.deviceType = "Docker";
+        } else if (data.includes("/machine.slice/machine-qemu")) {
+          _deviceDetails.deviceType = "Virtual Machine";
+        } else if (data.includes("/machine.slice/machine-vmware")) {
+          _deviceDetails.deviceType = "Virtual Machine";
+        } else {
+          _deviceDetails.deviceType = "Server";
+        }
+      }
+    });
+  } else {
+    _deviceDetails.deviceType = "Server";
+  }
+  /** Type of Device END */
+
+  try {
+    fs.writeFileSync(`${baseFolderPath}/${deviceFile}`, JSON.stringify(_deviceDetails, null, 2));
+  } catch (error) {
+    console.error("SDK EXCEPTION :> on device details save ", error);
+    // throw new Error(error instanceof Error ? error.message : "License Device File Save Exception.");
+  }
+
+  return _deviceDetails;
+};
 export class License {
   private static task: any;
 
   private static licenseKey: string = "";
   private static baseUrl: string = "";
   private static secretId: string = "";
-  private static platform: string = "";
-  private static deviceId: string = "";
+  // private static platform: string = "";
+  // private static deviceId: string = "";
+  private static device: object = {};
   private static org_Id: string = "default";
-  private static _ip: string = ip.address() || "";
+  // private static _ip: string = ip.address() || "";
   private static dateTime: Date = new Date();
   private static timeZone: string = moment.tz.guess();
 
@@ -471,22 +551,21 @@ export class License {
       if (!preChecks.isInitFile) {
         // If init file not present then need to create with clientData
 
-        await machineId().then((id) => {
-          this.deviceId = id;
-        });
-        this.platform = process?.platform || "";
+        // await machineId().then((id) => {
+        //   this.deviceId = id;
+        // });
+        // this.platform = process?.platform || "";
         this.licenseKey = license_Key;
         this.baseUrl = base_Url;
 
+        this.device = await getDeviceDetails();
         this.secretId = await aesGenerateKeys();
 
         clientConfig = {
           baseUrl: this.baseUrl,
           licenseKey: this.licenseKey,
-          deviceId: this.deviceId,
+          device: this.device,
           secretId: this.secretId || "",
-          platform: this.platform,
-          ip: this._ip,
           dateTime: this.dateTime,
           timeZone: this.timeZone,
           ...clientData,
@@ -569,9 +648,7 @@ export class License {
       }
     } catch (error) {
       console.error("Initialization fail: ", error);
-      throw new Error(
-        error instanceof Error ? error.message : "Unknown error occurred > Path creation error for org id."
-      );
+      throw new Error(error instanceof Error ? error.message : "Unknown error occurred > Initialization failed.");
     }
   }
 
@@ -613,7 +690,7 @@ export class License {
 
       // parseData.assignType == license_Key.toString().trim() ? "default" : assignType;
       parseData.assignType = assignType;
-
+      parseData.device = await getDeviceDetails();
       parseData.licenseKey = license_Key;
       parseData.orgId = org_Id.toString().trim();
       parseData.dateTime = new Date();
@@ -884,6 +961,77 @@ export class License {
       throw new Error(error instanceof Error ? error.message : "Unknown error occurred > GetLicenseDetail().");
     }
   }
+
+  static delete = async (org_Id: String = ""): Promise<responseData> => {
+    if (!org_Id) {
+      console.error(`Org id should't be blank '${org_Id}'.`);
+      throw new Error(`Org id should't be blank '${org_Id}'.`);
+    }
+    try {
+      let orgInitFile = `${baseFolderPath}/${org_Id.toString().trim()}/${initFile}`;
+      
+      if (fs.existsSync(orgInitFile)) {
+        let fileData = fs.readFileSync(orgInitFile, "utf-8");
+        const parseData = JSON.parse(fileData);
+
+        return await axios
+          .delete(`${parseData?.baseUrl}/sdk/api/delete/${org_Id}`, {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          })
+          .then((res) => {
+            if (res.data?.resultCode == 1) {
+              try {
+                this.removeKeyFiles(org_Id, "deleteLicense()");
+                if (fs.existsSync(`${licenseBaseFolder}/${org_Id}/${licenseFile}`)) {
+                  fs.unlink(`${licenseBaseFolder}/${org_Id}/${licenseFile}`, () => {});
+                }
+              } catch (error) {
+                console.error("Fail to delete files after delete license. ", error);
+                throw new Error(error instanceof Error ? error.message : "License File Delete Exception.");
+              }
+
+              return {
+                code: 1,
+                data: {},
+                result: "License deleted.",
+              };
+            } else {
+              console.error(`Fail to delete license on server. '${org_Id}'.`);
+              throw new Error(`Fail to delete license on server. '${org_Id}'.`);
+            }
+          })
+          .catch((err) => {
+            if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
+              console.error("Unable to connect License server :", err?.message);
+              throw new Error(
+                err instanceof Error
+                  ? `Unable to connect License server : ${err?.message}`
+                  : "Something went wrong at licensing server end."
+              );
+            }
+
+            console.debug(
+              "License Server Response : ",
+              `Status: ${err?.response?.status} : ${err?.message} : `,
+              err?.response?.data
+            );
+
+            let _errorMsg = err?.response?.data?.message || "Fail to delete license from server.";
+
+            console.error({ _errorMsg });
+            throw new Error(_errorMsg);
+          });
+      } else {
+        console.error(`No License issued to org id ${org_Id}.`);
+        throw new Error(`No License issued to org id ${org_Id}. Unable to delete.`);
+      }
+    } catch (error) {
+      console.error("Delete License Exception :", error);
+      throw new Error(error instanceof Error ? error.message : "Unknown error occurred > Delete License.");
+    }
+  };
 }
 (async function () {
   function readDirectories(directoryPath: string): string[] {
@@ -907,7 +1055,7 @@ export class License {
   // cron.schedule("*/10 * * * * *", async () => { // this is 10 sec
   // Define your scheduler initialization logic
   cron.schedule("*/30 * * * *", async () => {
-    /** this is 10 min */
+    /** this is 30 min */
     try {
       const subFolders = (await readDirectories(baseFolderPath)) || [];
 
@@ -917,6 +1065,8 @@ export class License {
         if (fs.existsSync(orgInitFile)) {
           let fileData = fs.readFileSync(orgInitFile, "utf-8");
           const parseData = JSON.parse(fileData);
+
+          parseData.device = await getDeviceDetails();
 
           if (
             parseData &&
