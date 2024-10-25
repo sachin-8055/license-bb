@@ -56,7 +56,7 @@ export function rsaDecrypt(keyFilePath: string = "", encryptedText: string = "")
     const base64Decode_to_byte = forge.util.decode64(encryptedText);
     plainText = forgePrivateKey.decrypt(base64Decode_to_byte);
 
-    if (plainText.trim() != "" && plainText.includes("{") && typeof plainText == "string") {
+    if (plainText.trim() !== "" && plainText.includes("{") && typeof plainText === "string") {
       plainText = JSON.parse(plainText);
     }
 

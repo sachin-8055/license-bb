@@ -59,7 +59,7 @@ const logging = async (org_Id: String = "", reason: String = "", result: String 
 const getTrace = async (org_Id: String = "") => {
   if (fs) {
     if (fs.existsSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`)) {
-      let traceFileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, "utf-8");
+      let traceFileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, "utf8");
 
       if (traceFileData) {
         return JSON.parse(traceFileData);
@@ -74,7 +74,7 @@ const updateTrace = async (org_Id: String = "", JsonData: any) => {
   if (fs) {
     let oldTrace = await getTrace(org_Id);
 
-    if (oldTrace && oldTrace != null && JsonData) {
+    if (oldTrace && oldTrace !== null && JsonData) {
       let newTraceData = { ...oldTrace, ...JsonData };
 
       fs.writeFileSync(`${baseFolderPath}/${org_Id}/${infoTracerFile}`, JSON.stringify(newTraceData, null, 2));
@@ -102,7 +102,7 @@ const getDeviceDetails = async (): Promise<DeviceDetails> => {
 
   let filePath = `${baseFolderPath}/${deviceFile}`;
   if (fs.existsSync(filePath)) {
-    let fileData = fs.readFileSync(`${baseFolderPath}/${deviceFile}`, "utf-8");
+    let fileData = fs.readFileSync(`${baseFolderPath}/${deviceFile}`, "utf8");
     const parseData = fileData ? JSON.parse(fileData) : null;
     if (parseData) {
       return parseData || null;
@@ -141,9 +141,7 @@ const getDeviceDetails = async (): Promise<DeviceDetails> => {
       } else {
         if (data.includes("/docker/")) {
           _deviceDetails.deviceType = "Docker";
-        } else if (data.includes("/machine.slice/machine-qemu")) {
-          _deviceDetails.deviceType = "Virtual Machine";
-        } else if (data.includes("/machine.slice/machine-vmware")) {
+        } else if (data.includes("/machine.slice/machine-qemu")  || data.includes("/machine.slice/machine-vmware")) {
           _deviceDetails.deviceType = "Virtual Machine";
         } else {
           _deviceDetails.deviceType = "Server";
@@ -188,7 +186,7 @@ export class License {
       }
 
       if (clientData) {
-        let _public_Key = await fs.readFileSync(`${baseFolderPath}/${org_Id.toString().trim()}/${publicFile}`, "utf-8");
+        let _public_Key = await fs.readFileSync(`${baseFolderPath}/${org_Id.toString().trim()}/${publicFile}`, "utf8");
 
         if (!clientData?.licenseKey) {
           console.error(`No client license key found, please call init() again with required data.`);
@@ -201,8 +199,8 @@ export class License {
         const _doExchangeApi = `${clientData.baseUrl}/sdk/api/doExchange`;
 
         const _clientData = { ...clientData };
-        delete _clientData?.secretId;
-        delete _clientData?.baseUrl;
+        if(_clientData.secretId) delete _clientData.secretId;
+        if(_clientData.baseUrl) delete _clientData.baseUrl;
 
         const apiBody = {
           key: _public_Key.toString(),
@@ -224,6 +222,7 @@ export class License {
 
               return await this.getLicense(org_Id.toString().trim(), clientData).then((getLic) => {
                 if (Number(getLic?.code) < 0) {
+                  // file deepcode ignore PromiseNotCaughtGeneral: not blocking next execution if we add catch everywhere.
                   return getLic;
                 } else {
                   return {
@@ -232,13 +231,13 @@ export class License {
                     result: "Successfully exchanged and received license.",
                   };
                 }
-              });
+              })
             } else {
               console.error(`Exchange fail with license server for org '${org_Id}'.`);
               throw new Error(`Exchange fail with license server for org '${org_Id}'.`);
             }
           })
-          .catch((err) => {
+          .catch((err:any) => {
             if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
               console.error("Unable to connect License server :", err?.message);
               throw new Error(
@@ -259,7 +258,7 @@ export class License {
             throw new Error(_errorMsg);
           });
       } else {
-        console.error(`Invalid client details for org id '${org_Id}'.`);
+        console.error(`Invalid client details for org id '${org_Id}'.`,{clientData});
         throw new Error(`Invalid client details for org id '${org_Id}'.`);
       }
     } catch (error) {
@@ -313,7 +312,7 @@ export class License {
             throw new Error(`Get License fail with license server. '${org_Id}'.`);
           }
         })
-        .catch((err) => {
+        .catch((err:any) => {
           if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
             console.error("Unable to connect License server :", err?.message);
             throw new Error(
@@ -362,7 +361,7 @@ export class License {
             throw new Error(`Key is invalid.`);
           }
         })
-        .catch((err) => {
+        .catch((err:any) => {
           if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
             console.error("Unable to connect License server :", err?.message);
             throw new Error(
@@ -378,7 +377,7 @@ export class License {
           );
 
           let _errorMsg =
-            err?.response?.status == 404
+            err?.response?.status == 400
               ? `Invalid license key '${license_Key}', please check the license key`
               : `Fail to check license key '${license_Key}'`;
 
@@ -426,7 +425,7 @@ export class License {
   };
 
   private static readFileAndParse = async (org_Id: String = ""): Promise<any> => {
-    let fileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, "utf-8");
+    let fileData = fs.readFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, "utf8");
     const parseData = JSON.parse(fileData);
     return parseData || null;
   };
@@ -444,12 +443,12 @@ export class License {
       }
       if (fs.existsSync(filePath)) {
         /** Read License File */
-        let _encryptedLicense: any = await fs.readFileSync(filePath, "utf-8");
+        let _encryptedLicense: any = await fs.readFileSync(filePath, "utf8");
 
         /** Format JSON and decode sign */
         _encryptedLicense = JSON.parse(_encryptedLicense);
 
-        const decodedSign: any = await rsaDecrypt(
+        const decodedSign: any = rsaDecrypt(
           `${baseFolderPath}/${org_Id}/${privateFile}`,
           _encryptedLicense?.sign
         );
@@ -459,7 +458,7 @@ export class License {
           throw new Error(decodedSign || "Invalid encrypted data received for decrypt signature.");
         }
         /** after success of sign decode use decoded sign and do 'enc' decryption using AES */
-        let decodedLicense: any = await aesDecrypt(decodedSign, _encryptedLicense?.enc);
+        let decodedLicense: any = aesDecrypt(decodedSign, _encryptedLicense?.enc);
 
         if (decodedLicense?.toString()?.includes("Invalid")) {
           console.error(decodedSign || `Invalid encrypted data received for decrypt license for org ${org_Id}`);
@@ -545,6 +544,7 @@ export class License {
           error instanceof Error ? error.message : "Unknown error occurred > Path creation error for org id."
         );
       }
+      
 
       let preChecks: any = await this.checkPreinit(org_Id);
       let clientConfig: any = null;
@@ -576,11 +576,16 @@ export class License {
       } else {
         const existingClientObj = await this.readFileAndParse(org_Id);
 
-        if (existingClientObj.licenseKey != license_Key) {
+        if (existingClientObj.licenseKey !== license_Key) {
           existingClientObj.licenseKey = license_Key;
           existingClientObj.dateTime = new Date();
 
+          if(existingClientObj){
           clientConfig = { ...existingClientObj };
+
+          }else {
+            console.warn(`Empty existing client details found:${org_Id}`,{existingClientObj})
+          }
 
           // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(existingClientObj));
 
@@ -593,6 +598,8 @@ export class License {
               error instanceof Error ? error.message : "Unknown error occurred > While updating user config files."
             );
           }
+        } else {
+          clientConfig = { ...existingClientObj };
         }
       }
 
@@ -633,8 +640,9 @@ export class License {
           }
         });
       } else {
+
         /** If already init file present then sync only */
-        return await this.sync(license_Key, org_Id).then((syncRes) => {
+        return await License.sync(license_Key, org_Id).then((syncRes) => {
           if (Number(syncRes?.code) < 0) {
             return syncRes;
           } else {
@@ -685,7 +693,7 @@ export class License {
     let orgInitFile = `${baseFolderPath}/${org_Id.toString().trim()}/${initFile}`;
 
     if (fs.existsSync(orgInitFile)) {
-      let fileData = fs.readFileSync(orgInitFile, "utf-8");
+      let fileData = fs.readFileSync(orgInitFile, "utf8");
       const parseData = JSON.parse(fileData);
 
       // parseData.assignType == license_Key.toString().trim() ? "default" : assignType;
@@ -694,8 +702,8 @@ export class License {
       parseData.licenseKey = license_Key;
       parseData.orgId = org_Id.toString().trim();
       parseData.dateTime = new Date();
-
-      const res_init = await this.init(parseData?.baseUrl, license_Key, parseData);
+      
+      const res_init = await License.init(parseData?.baseUrl, license_Key, parseData);
       return res_init;
     } else {
       console.error(`No exiting init file found please do initialize client using init() org id ${org_Id}.`);
@@ -712,10 +720,10 @@ export class License {
     let orgInitFile = `${baseFolderPath}/${org_Id.toString().trim()}/${initFile}`;
 
     if (fs.existsSync(orgInitFile)) {
-      let fileData = fs.readFileSync(orgInitFile, "utf-8");
+      let fileData = fs.readFileSync(orgInitFile, "utf8");
       const parseData = JSON.parse(fileData);
 
-      if (parseData.licenseKey != license_Key) {
+      if (parseData.licenseKey !== license_Key) {
         console.error(`License key '${license_Key}' doesn't match with existing license to sync.`);
         throw new Error(`License key '${license_Key}' doesn't match with existing license to sync.`);
       } else {
@@ -738,7 +746,7 @@ export class License {
   }
 
   private static calculateDays(startDate: string = ""): number {
-    if (startDate != "") {
+    if (startDate !== "") {
       const date = new Date(startDate);
 
       // Get today's date
@@ -787,7 +795,7 @@ export class License {
       if (fullLicense?.include?.package && _features && _features?.length > 0) {
         /** Expiry logic checking */
 
-        let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
+        let expiryDateDays: number = License.calculateDays(_lic_meta?.expiryDate);
         if (expiryDateDays >= 2) {
           _lic_meta.isExpired = true;
         }
@@ -800,13 +808,13 @@ export class License {
             _fList.push({
               ...item,
               data:
-                item?.type == "number" && item?.data != ""
+                item?.type == "number" && item?.data !== ""
                   ? Number(item?.data)
-                  : item?.type == "boolean" && item?.data != ""
+                  : item?.type == "boolean" && item?.data !== ""
                   ? item.data === "false"
                     ? false
                     : Boolean(item.data)
-                  : item?.type == "date" && item?.data != ""
+                  : item?.type == "date" && item?.data !== ""
                   ? new Date(item?.data)
                   : item.data,
             });
@@ -827,13 +835,13 @@ export class License {
               _fList.push({
                 ...item,
                 data:
-                  item?.type == "number" && item?.data != ""
+                  item?.type == "number" && item?.data !== ""
                     ? Number(item?.data)
-                    : item?.type == "boolean" && item?.data != ""
+                    : item?.type == "boolean" && item?.data !== ""
                     ? item.data === "false"
                       ? false
                       : Boolean(item.data)
-                    : item?.type == "date" && item?.data != ""
+                    : item?.type == "date" && item?.data !== ""
                     ? new Date(item?.data)
                     : item.data,
               });
@@ -858,13 +866,13 @@ export class License {
               data: {
                 ...item,
                 data:
-                  item?.type == "number" && item?.data != ""
+                  item?.type == "number" && item?.data !== ""
                     ? Number(item?.data)
-                    : item?.type == "boolean" && item?.data != ""
+                    : item?.type == "boolean" && item?.data !== ""
                     ? item.data === "false"
                       ? false
                       : Boolean(item.data)
-                    : item?.type == "date" && item?.data != ""
+                    : item?.type == "date" && item?.data !== ""
                     ? new Date(item?.data)
                     : item.data,
               },
@@ -910,7 +918,7 @@ export class License {
         isExpired: false,
       };
 
-      let expiryDateDays: number = this.calculateDays(_lic_meta?.expiryDate);
+      let expiryDateDays: number = License.calculateDays(_lic_meta?.expiryDate);
       if (expiryDateDays >= 2) {
         _lic_meta.isExpired = true;
       }
@@ -927,13 +935,13 @@ export class License {
           _fList.push({
             ...item,
             data:
-              item?.type == "number" && item?.data != ""
+              item?.type == "number" && item?.data !== ""
                 ? Number(item?.data)
-                : item?.type == "boolean" && item?.data != ""
+                : item?.type == "boolean" && item?.data !== ""
                 ? item.data === "false"
                   ? false
                   : Boolean(item.data)
-                : item?.type == "date" && item?.data != ""
+                : item?.type == "date" && item?.data !== ""
                 ? new Date(item?.data)
                 : item.data,
           });
@@ -969,9 +977,9 @@ export class License {
     }
     try {
       let orgInitFile = `${baseFolderPath}/${org_Id.toString().trim()}/${initFile}`;
-      
+
       if (fs.existsSync(orgInitFile)) {
-        let fileData = fs.readFileSync(orgInitFile, "utf-8");
+        let fileData = fs.readFileSync(orgInitFile, "utf8");
         const parseData = JSON.parse(fileData);
 
         return await axios
@@ -1002,7 +1010,7 @@ export class License {
               throw new Error(`Fail to delete license on server. '${org_Id}'.`);
             }
           })
-          .catch((err) => {
+          .catch((err:any) => {
             if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
               console.error("Unable to connect License server :", err?.message);
               throw new Error(
@@ -1054,7 +1062,8 @@ export class License {
 
   // cron.schedule("*/10 * * * * *", async () => { // this is 10 sec
   // Define your scheduler initialization logic
-  cron.schedule("*/30 * * * *", async () => {
+  const midnight = "0 30 0 * * *";
+  cron.schedule(midnight, async () => {
     /** this is 30 min */
     try {
       const subFolders = (await readDirectories(baseFolderPath)) || [];
@@ -1063,7 +1072,7 @@ export class License {
         let orgInitFile = `${baseFolderPath}/${orgId}/${initFile}`;
 
         if (fs.existsSync(orgInitFile)) {
-          let fileData = fs.readFileSync(orgInitFile, "utf-8");
+          let fileData = fs.readFileSync(orgInitFile, "utf8");
           const parseData = JSON.parse(fileData);
 
           parseData.device = await getDeviceDetails();
@@ -1071,7 +1080,7 @@ export class License {
           if (
             parseData &&
             parseData?.licenseKey &&
-            parseData?.licenseKey != "" &&
+            parseData?.licenseKey !== "" &&
             fs.existsSync(`${baseFolderPath}/${orgId}/${serverFile}`)
           ) {
             try {
