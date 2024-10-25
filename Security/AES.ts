@@ -1,8 +1,8 @@
 import crypto from "crypto";
 
 const defaultKeyLength: number = 32;
-// const algorithum = 'aes-256-ecb';
-const algorithum = 'aes-256-gcm';
+const algorithum = 'aes-256-ecb';
+/* const algorithum = 'aes-256-gcm'; */
 export function aesGenerateKeys(): string {
   try {
     const newAesKey: string = crypto.randomBytes(defaultKeyLength).toString("base64");
