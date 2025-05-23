@@ -6,7 +6,6 @@ import { clientInputData, DeviceDetails, responseData, rsaKey } from "./DataForm
 import fs from "fs";
 import { rsaDecrypt, rsaEncrypt, rsaGenerateKeys } from "./Security/RSA";
 import { aesDecrypt, aesEncrypt, aesGenerateKeys } from "./Security/AES";
-import { machineId } from "node-machine-id";
 import cron from "node-cron";
 import path from "path";
 import { sha256 } from "hash.js";
@@ -141,7 +140,7 @@ const getDeviceDetails = async (): Promise<DeviceDetails> => {
       } else {
         if (data.includes("/docker/")) {
           _deviceDetails.deviceType = "Docker";
-        } else if (data.includes("/machine.slice/machine-qemu")  || data.includes("/machine.slice/machine-vmware")) {
+        } else if (data.includes("/machine.slice/machine-qemu") || data.includes("/machine.slice/machine-vmware")) {
           _deviceDetails.deviceType = "Virtual Machine";
         } else {
           _deviceDetails.deviceType = "Server";
@@ -186,7 +185,12 @@ export class License {
       }
 
       if (clientData) {
-        let _public_Key = await fs.readFileSync(`${baseFolderPath}/${org_Id.toString().trim()}/${publicFile}`, "utf8");
+        let publicFilePath = `${baseFolderPath}/${org_Id.toString().trim()}/${publicFile}`;
+        let tempPublicFilePath = `${baseFolderPath}/${org_Id.toString().trim()}/temp_${publicFile}`;
+
+        let _public_Key = fs.existsSync(tempPublicFilePath)
+          ? await fs.readFileSync(tempPublicFilePath, "utf8")
+          : await fs.readFileSync(publicFilePath, "utf8");
 
         if (!clientData?.licenseKey) {
           console.error(`No client license key found, please call init() again with required data.`);
@@ -199,8 +203,8 @@ export class License {
         const _doExchangeApi = `${clientData.baseUrl}/sdk/api/doExchange`;
 
         const _clientData = { ...clientData };
-        if(_clientData.secretId) delete _clientData.secretId;
-        if(_clientData.baseUrl) delete _clientData.baseUrl;
+        if (_clientData.secretId) delete _clientData.secretId;
+        if (_clientData.baseUrl) delete _clientData.baseUrl;
 
         const apiBody = {
           key: _public_Key.toString(),
@@ -231,13 +235,13 @@ export class License {
                     result: "Successfully exchanged and received license.",
                   };
                 }
-              })
+              });
             } else {
               console.error(`Exchange fail with license server for org '${org_Id}'.`);
               throw new Error(`Exchange fail with license server for org '${org_Id}'.`);
             }
           })
-          .catch((err:any) => {
+          .catch((err: any) => {
             if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
               console.error("Unable to connect License server :", err?.message);
               throw new Error(
@@ -258,7 +262,7 @@ export class License {
             throw new Error(_errorMsg);
           });
       } else {
-        console.error(`Invalid client details for org id '${org_Id}'.`,{clientData});
+        console.error(`Invalid client details for org id '${org_Id}'.`, { clientData });
         throw new Error(`Invalid client details for org id '${org_Id}'.`);
       }
     } catch (error) {
@@ -312,7 +316,7 @@ export class License {
             throw new Error(`Get License fail with license server. '${org_Id}'.`);
           }
         })
-        .catch((err:any) => {
+        .catch((err: any) => {
           if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
             console.error("Unable to connect License server :", err?.message);
             throw new Error(
@@ -361,7 +365,7 @@ export class License {
             throw new Error(`Key is invalid.`);
           }
         })
-        .catch((err:any) => {
+        .catch((err: any) => {
           if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
             console.error("Unable to connect License server :", err?.message);
             throw new Error(
@@ -448,10 +452,7 @@ export class License {
         /** Format JSON and decode sign */
         _encryptedLicense = JSON.parse(_encryptedLicense);
 
-        const decodedSign: any = rsaDecrypt(
-          `${baseFolderPath}/${org_Id}/${privateFile}`,
-          _encryptedLicense?.sign
-        );
+        const decodedSign: any = rsaDecrypt(`${baseFolderPath}/${org_Id}/${privateFile}`, _encryptedLicense?.sign);
 
         if (decodedSign?.toString()?.includes("Invalid")) {
           console.error(decodedSign || `Invalid encrypted data received for decrypt signature for org ${org_Id}`);
@@ -544,7 +545,6 @@ export class License {
           error instanceof Error ? error.message : "Unknown error occurred > Path creation error for org id."
         );
       }
-      
 
       let preChecks: any = await this.checkPreinit(org_Id);
       let clientConfig: any = null;
@@ -580,18 +580,18 @@ export class License {
           existingClientObj.licenseKey = license_Key;
           existingClientObj.dateTime = new Date();
 
-          if(existingClientObj){
-          clientConfig = { ...existingClientObj };
-
-          }else {
-            console.warn(`Empty existing client details found:${org_Id}`,{existingClientObj})
+          if (existingClientObj) {
+            clientConfig = { ...existingClientObj };
+          } else {
+            console.warn(`Empty existing client details found:${org_Id}`, { existingClientObj });
           }
 
           // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(existingClientObj));
 
           try {
-            await this.removeKeyFiles(org_Id, "init()");
-            preChecks = await this.checkPreinit(org_Id);
+            // await this.removeKeyFiles(org_Id, "init()");
+            // preChecks = await this.checkPreinit(org_Id);
+            preChecks = { isPublicFile: false, isPrivateFile: false };
           } catch (error) {
             console.error("EXCEPTION removeKeyFiles/configFiles :> ", error);
             throw new Error(
@@ -609,15 +609,21 @@ export class License {
       if (!preChecks.isPublicFile || !preChecks.isPrivateFile) {
         keyGen = await rsaGenerateKeys();
 
-        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${publicFile}`, keyGen.publicKey);
-        fs.writeFileSync(`${baseFolderPath}/${org_Id}/${privateFile}`, keyGen.privateKey);
+        // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${publicFile}`, keyGen.publicKey);
+        // fs.writeFileSync(`${baseFolderPath}/${org_Id}/${privateFile}`, keyGen.privateKey);
+
+        /** store temprary till exchange success */
+        fs.writeFileSync(`${baseFolderPath}/${org_Id}/temp_${publicFile}`, keyGen.publicKey);
+        fs.writeFileSync(`${baseFolderPath}/${org_Id}/temp_${privateFile}`, keyGen.privateKey);
 
         isExchangeNow = true;
       }
 
-      let exchangeFiles = await this.checkExchangeFiles(org_Id);
-
-      isExchangeNow = !exchangeFiles?.isServerFile || !exchangeFiles?.isLicenseFile ? true : false;
+      if (!isExchangeNow) {
+        let exchangeFiles = await this.checkExchangeFiles(org_Id);
+        // console.debug("Exchange Files : ", { exchangeFiles });
+        isExchangeNow = !exchangeFiles?.isServerFile || !exchangeFiles?.isLicenseFile ? true : false;
+      }
 
       if (isExchangeNow) {
         return await this.doExchange(org_Id, clientConfig).then((exchRes) => {
@@ -625,6 +631,19 @@ export class License {
             return exchRes;
           } else {
             try {
+              /** remove existing files and check temp file is available then rename it */
+              if (fs.existsSync(`${baseFolderPath}/${org_Id}/temp_${publicFile}`)) {
+                fs.renameSync(
+                  `${baseFolderPath}/${org_Id}/temp_${publicFile}`,
+                  `${baseFolderPath}/${org_Id}/${publicFile}`
+                );
+              }
+              if (fs.existsSync(`${baseFolderPath}/${org_Id}/temp_${privateFile}`)) {
+                fs.renameSync(
+                  `${baseFolderPath}/${org_Id}/temp_${privateFile}`,
+                  `${baseFolderPath}/${org_Id}/${privateFile}`
+                );
+              }
               fs.writeFileSync(`${baseFolderPath}/${org_Id}/${initFile}`, JSON.stringify(clientConfig));
             } catch (error) {
               console.error("EXCEPTION writing client config File :> ", error);
@@ -640,7 +659,6 @@ export class License {
           }
         });
       } else {
-
         /** If already init file present then sync only */
         return await License.sync(license_Key, org_Id).then((syncRes) => {
           if (Number(syncRes?.code) < 0) {
@@ -649,7 +667,7 @@ export class License {
             return {
               code: 1,
               data: null,
-              result: "Successfully license exchange/received and sync.",
+              result: "Successfully license sync.",
             };
           }
         });
@@ -702,7 +720,7 @@ export class License {
       parseData.licenseKey = license_Key;
       parseData.orgId = org_Id.toString().trim();
       parseData.dateTime = new Date();
-      
+
       const res_init = await License.init(parseData?.baseUrl, license_Key, parseData);
       return res_init;
     } else {
@@ -1010,7 +1028,7 @@ export class License {
               throw new Error(`Fail to delete license on server. '${org_Id}'.`);
             }
           })
-          .catch((err:any) => {
+          .catch((err: any) => {
             if (err?.code == "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
               console.error("Unable to connect License server :", err?.message);
               throw new Error(

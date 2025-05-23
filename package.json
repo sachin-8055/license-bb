@@ -1,6 +1,6 @@
 {
   "name": "license-bb",
-  "version": "1.4.11",
+  "version": "1.4.13",
   "description": "SDK to create license for any project.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

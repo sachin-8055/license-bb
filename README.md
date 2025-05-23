@@ -1,6 +1,10 @@
 # license-bb
  SDK to create license for any project.
 
+## 📦 Changelog
+
+See [CHANGELOG](https://github.com/sachin-8055/license-bb/CHANGELOG.md) for details.
+
 #### Install using below command.
 ```
 $ npm i license-bb@latest
