@@ -3,7 +3,7 @@
 
 ## 📦 Changelog
 
-See [CHANGELOG](https://github.com/sachin-8055/license-bb/CHANGELOG.md) for details.
+See [CHANGELOG](https://github.com/sachin-8055/license-bb/blob/main/CHANGELOG.md) for details.
 
 #### Install using below command.
 ```
