@@ -1,5 +1,14 @@
 # Changelog
 
+## [Version 1.4.16] - 2026-04-01
+
+### Changed
+- Axios updated to v1.14.0
+
+### Fixed
+- Axios version updated.
+
+
 ## [Version 1.4.13] - 2025-05-23
 
 ### Added
