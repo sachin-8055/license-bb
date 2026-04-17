@@ -1,0 +1,39 @@
+# Don't publish source files
+
+src/
+test/
+tests/
+**tests**/
+
+# Config files
+
+.git/
+.github/
+.gitignore
+Dockerfile
+docker-compose.yml
+
+# Logs
+
+*.log
+npm-debug.log*
+
+# Env files
+
+.env
+.env.*
+
+# Build cache
+
+coverage/
+
+# IDE files
+
+.vscode/
+.idea/
+
+# Misc
+
+*.ts
+tsconfig.json
+jest.config.js
