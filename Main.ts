@@ -1,4 +1,3 @@
-import ip from "ip";
 import os from "os";
 import axios from "axios";
 import moment from "moment-timezone";
@@ -171,7 +170,6 @@ export class License {
   // private static deviceId: string = "";
   private static device: object = {};
   private static org_Id: string = "default";
-  // private static _ip: string = ip.address() || "";
   private static dateTime: Date = new Date();
   private static timeZone: string = moment.tz.guess();
 

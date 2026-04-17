@@ -1,5 +1,11 @@
 # Changelog
 
+## [Version 1.4.17] - 2026-04-17
+
+### Changed
+- Vulnerabilities updated to latest.
+
+
 ## [Version 1.4.16] - 2026-04-01
 
 ### Changed
